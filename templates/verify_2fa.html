@@ -9,8 +9,7 @@
     {% endif %}
     <p>To complete your login, please enter the 6-digit code from your authenticator app.</p>
     
-    <form action="/verify_login_2fa" method="post" class="box">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <form action="/verify_login_2fa" method="POST" class="box">
         <input type="hidden" name="username" value="{{ username }}">
         <div class="input__wrapper">
             <label for="token">Authentication Code:</label>

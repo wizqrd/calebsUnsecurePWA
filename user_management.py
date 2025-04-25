@@ -70,9 +70,9 @@ def generateQRCode(username, secret):
     img = qrcode.make(uri)
     buffered = BytesIO()
     img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
+    imgStr = base64.b64encode(buffered.getvalue()).decode()
     
-    return f"data:image/png;base64,{img_str}"
+    return f"data:image/png;base64,{imgStr}"
 
 def verifyTOTP(secret, token):
     totp = pyotp.TOTP(secret)
@@ -93,22 +93,22 @@ def getTOTPSecret(username):
         logging.error(f"Error getting TOTP secret: {str(e)}")
         return None
 
-def insertUser(username, password, DoB, email=""):
+def insertUser(username, password, dob, email=""):
     try:
         addEmailColumnIfNotExists()
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
         hashedPassword = hashPassword(password)
-        totp_secret = generateTOTPSecret()
+        totpSecret = generateTOTPSecret()
         
         cur.execute(
             "INSERT INTO users (username,password,dateOfBirth,email,totp_secret) VALUES (?,?,?,?,?)",
-            (username, hashedPassword, DoB, email, totp_secret),
+            (username, hashedPassword, dob, email, totpSecret),
         )
         con.commit()
         con.close()
         logging.info(f"New user created: {username}")
-        return totp_secret
+        return totpSecret
     except Exception as e:
         logging.error(f"Error creating user: {str(e)}")
         return None

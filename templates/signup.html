@@ -8,23 +8,35 @@
     </div>
     {% endif %}
     <form action="/signup.html" method="POST" class="box">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="input__wrapper">
-            <input type="text" name="username" placeholder="Username" class="input__field" required>
+            <input type="text" name="username" id="username-input" placeholder="Username" class="input__field" required>
+            <div class="validation-info">
+                <p>Username must:</p>
+                <ul>
+                    <li id="username-length">Be at least 3 characters long</li>
+                    <li id="username-alphanumeric">Contain only letters, numbers, and underscores</li>
+                </ul>
+            </div>
         </div>
         <div class="input__wrapper">
-            <input type="email" name="email" placeholder="Email Address" class="input__field" required>
+            <input type="email" name="email" id="email-input" placeholder="Email Address" class="input__field" required>
+            <div class="validation-info">
+                <p>Email must:</p>
+                <ul>
+                    <li id="email-format">Have a valid email format (example@domain.com)</li>
+                </ul>
+            </div>
         </div>            
         <div class="input__wrapper">
-            <input type="password" name="password" placeholder="Password" class="input__field" required>
+            <input type="password" name="password" id="password-input" placeholder="Password" class="input__field" required>
             <div class="password-info">
                 <p>Password must:</p>
                 <ul>
-                    <li>Be between 8 and 20 characters</li>
-                    <li>Contain at least one uppercase letter</li>
-                    <li>Contain at least one lowercase letter</li>
-                    <li>Contain at least one number</li>
-                    <li>Contain at least one special character</li>
+                    <li id="length-req">Be between 8 and 20 characters</li>
+                    <li id="uppercase-req">Contain at least one uppercase letter</li>
+                    <li id="lowercase-req">Contain at least one lowercase letter</li>
+                    <li id="number-req">Contain at least one number</li>
+                    <li id="special-req">Contain at least one special character</li>
                 </ul>
             </div>
         </div>

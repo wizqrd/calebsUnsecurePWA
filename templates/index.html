@@ -12,8 +12,7 @@
         <p>{{ message }}</p>
     </div>
     {% endif %}
-    <form action="/" method="post" class="box">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <form action="/" method="POST" class="box">
         <div class="input__wrapper">
             <input type="text" name="username" id="username" placeholder="Username" class="input__field" required/>
         </div>

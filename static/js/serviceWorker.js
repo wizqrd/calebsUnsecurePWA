@@ -11,19 +11,18 @@ const assets = [
   ];
 
 const CATALOGUE_ASSETS = "catalogue-assets";
+const CACHE_VERSION = "v1";
+const CURRENT_CACHE = CATALOGUE_ASSETS + "-" + CACHE_VERSION;
 
 self.addEventListener("install", (installEvt) => {
   installEvt.waitUntil(
     caches
-      .open(CATALOGUE_ASSETS)
+      .open(CURRENT_CACHE)
       .then((cache) => {
-        console.log(cache)
         cache.addAll(assets);
       })
       .then(self.skipWaiting())
-      .catch((e) => {
-        console.log(e);
-      })
+      .catch(() => {})
   );
 });
 
@@ -34,8 +33,7 @@ self.addEventListener("activate", function (evt) {
       .then((keyList) => {
         return Promise.all(
           keyList.map((key) => {
-            if (key === CATALOGUE_ASSETS) {
-              console.log("Removed old cache from", key);
+            if (key.startsWith(CATALOGUE_ASSETS) && key !== CURRENT_CACHE) {
               return caches.delete(key);
             }
           })
@@ -48,7 +46,7 @@ self.addEventListener("activate", function (evt) {
 self.addEventListener("fetch", function (evt) {
   evt.respondWith(
     fetch(evt.request).catch(() => {
-      return caches.open(CATALOGUE_ASSETS).then((cache) => {
+      return caches.open(CURRENT_CACHE).then((cache) => {
         return cache.match(evt.request);
       });
     })

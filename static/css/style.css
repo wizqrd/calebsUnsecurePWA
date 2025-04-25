@@ -295,13 +295,29 @@ textarea.input__field {
     color: #666;
 }
 
-.password-info ul {
+.validation-info {
+    margin-top: 5px;
+    font-size: 0.8em;
+    color: #666;
+}
+
+.password-info ul, .validation-info ul {
     margin-top: 5px;
     padding-left: 20px;
 }
 
-.password-info li {
+.password-info li, .validation-info li {
     margin-bottom: 3px;
+}
+
+/* Password validation styles */
+.password-info li.valid, .validation-info li.valid {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+.password-info li.invalid, .validation-info li.invalid {
+    color: #f44336;
 }
 
 .qr-container {

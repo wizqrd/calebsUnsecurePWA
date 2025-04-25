@@ -4,22 +4,16 @@ from flask import request
 from flask import redirect
 from flask import session
 from flask import make_response
-from flask_wtf.csrf import CSRFProtect
-from flask_csp import CSP
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import html
 import re
+import secrets
 import user_management as dbHandler
 
-# Code snippet for logging a message
-# app.logger.critical("message")
-
 app = Flask(__name__)
-app.secret_key = "234098572435234"
+app.secret_key = secrets.token_hex(32)
 
-csrf = CSRFProtect(app)
-csp = CSP(app)
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -55,7 +49,7 @@ def addFeedback():
             return redirect("/", code=302)
     if request.method == "POST":
         feedback = sanitizeInput(request.form["feedback"])
-        if len(feedback) > 500:  # Limit feedback length
+        if len(feedback) > 500:
             feedback = feedback[:500]
         dbHandler.insertFeedback(feedback)
         dbHandler.listFeedback()
@@ -79,17 +73,17 @@ def signup():
         username = sanitizeInput(request.form["username"])
         email = sanitizeInput(request.form["email"])
         password = request.form["password"]
-        DoB = sanitizeInput(request.form["dob"])
+        dob = sanitizeInput(request.form["dob"])
         
         isValid, message = dbHandler.validatePassword(password)
         if not isValid:
             error = message
             return render_template("/signup.html", error=error)
             
-        totp_secret = dbHandler.insertUser(username, password, DoB, email)
-        if totp_secret:
-            qr_code = dbHandler.generateQRCode(username, totp_secret)
-            return render_template("/setup_2fa.html", qr_code=qr_code, secret=totp_secret, username=username)
+        totpSecret = dbHandler.insertUser(username, password, dob, email)
+        if totpSecret:
+            qrCode = dbHandler.generateQRCode(username, totpSecret)
+            return render_template("/setup_2fa.html", qr_code=qrCode, secret=totpSecret, username=username)
         else:
             error = "An error occurred during account creation"
             return render_template("/signup.html", error=error)
@@ -98,7 +92,7 @@ def signup():
 
 @app.route("/verify_2fa", methods=["POST"])
 @limiter.limit("5 per minute")
-def verify_2fa_setup():
+def verify2faSetup():
     if request.method == "POST":
         username = request.form["username"]
         token = request.form["token"]
@@ -146,7 +140,7 @@ def home():
 
 @app.route("/verify_login_2fa", methods=["POST"])
 @limiter.limit("5 per minute")
-def verify_login_2fa():
+def verifyLogin2fa():
     if request.method == "POST":
         username = request.form["username"]
         token = request.form["token"]
