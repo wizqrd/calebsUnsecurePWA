@@ -3,7 +3,7 @@
 This document tracks the security improvements made to the PWA application and how they align with security requirements.
 
 ## Latest Updates
-[Real-Time Input Validation](#14-real-time-input-validation-) - Provides instant visual feedback for form fields as users type, improving user experience and security.
+[Real-Time Input Validation](#14-real-time-input-validation) - Provides instant visual feedback for form fields as users type, improving user experience and security.
 
 ## Table of Contents
 1. [Password Hashing (Data Protection)](#1-password-hashing-data-protection)
@@ -20,10 +20,10 @@ This document tracks the security improvements made to the PWA application and h
 12. [Two-Factor Authentication (2FA)](#12-two-factor-authentication-2fa)
    - [Understanding TOTP Authentication](#121-understanding-totp-authentication)
 13. [Unit Testing](#13-unit-testing)
-14. [Real-Time Input Validation](#14-real-time-input-validation-) ✨ NEW FEATURE ✨
-15. [Feedback Length Limiting](#15-feedback-length-limiting) ✨ NEW FEATURE ✨
-16. [Visitor Count Tracking](#16-visitor-count-tracking) ✨ NEW FEATURE ✨
-17. [Anti-Timing Attack Measures](#17-anti-timing-attack-measures) ✨ NEW FEATURE ✨
+14. [Real-Time Input Validation](#14-real-time-input-validation) **NEW FEATURE**
+15. [Feedback Length Limiting](#15-feedback-length-limiting) **NEW FEATURE**
+16. [Visitor Count Tracking](#16-visitor-count-tracking) **NEW FEATURE**
+17. [Anti-Timing Attack Measures](#17-anti-timing-attack-measures) **NEW FEATURE**
 18. [Security Checklist Status](#security-checklist-status)
 19. [How to Run the Application](#how-to-run-the-application)
 20. [Running Tests](#running-tests)
@@ -37,9 +37,6 @@ This document tracks the security improvements made to the PWA application and h
 
 **Description: Securely stores user passwords using bcrypt hashing with salt to protect sensitive data.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: user_management.py**
 ```python
 def hashPassword(password):
@@ -50,6 +47,24 @@ def hashPassword(password):
 def checkPassword(plainPassword, hashedPassword):
     return bcrypt.checkpw(plainPassword.encode(), hashedPassword)
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
+**How It Works:**
+The application uses the bcrypt hashing algorithm to securely store passwords. When a user creates an account, their password is:
+
+1. Combined with a unique "salt" (random data) to prevent rainbow table attacks
+2. Hashed using the bcrypt algorithm, which is specifically designed for password hashing
+3. Stored in the database as the hash, never as plaintext
+
+When the user attempts to log in, their entered password is hashed using the same process and compared to the stored hash.
+
+**Implementation Details:**
+- Uses the bcrypt library for secure password hashing
+- Automatically generates unique salt for each password
+- Password is encoded to bytes before hashing
+- Resistant to brute force attacks due to bcrypt's computational intensity
 </details>
 
 **Key Benefits:**
@@ -66,9 +81,6 @@ def checkPassword(plainPassword, hashedPassword):
 
 **Description: Protects database queries from malicious SQL injection attacks using parameterized queries.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: user_management.py**
 ```python
 def retrieveUsers(username, password):
@@ -79,6 +91,9 @@ def retrieveUsers(username, password):
         user = cur.fetchone()
         # More code...
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 Parameterized queries separate SQL code from data, preventing attackers from injecting malicious code into queries. The `?` placeholder in the SQL statement is safely replaced with the actual value without allowing it to be interpreted as code. This implementation is used consistently throughout the application for all database operations.
@@ -104,9 +119,6 @@ Parameterized queries separate SQL code from data, preventing attackers from inj
 
 **Description: Sanitizes user input to prevent Cross-Site Scripting (XSS) attacks by escaping HTML special characters.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 def sanitizeInput(input_text):
@@ -123,6 +135,9 @@ def signup():
         DoB = sanitizeInput(request.form["dob"])
         # More code...
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application uses the `html.escape()` function to convert potentially dangerous characters like `<`, `>`, `&`, `'`, and `"` into their HTML entity equivalents. This prevents browsers from interpreting these characters as HTML or JavaScript code, thus neutralizing XSS attacks.
@@ -148,9 +163,6 @@ The application uses the `html.escape()` function to convert potentially dangero
 
 **Description: Implements security headers to prevent Cross-Frame Scripting (XFS) and related attacks.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 @app.after_request
@@ -161,6 +173,9 @@ def setSecurityHeaders(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     return response
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 Security headers are HTTP response headers that tell browsers how to behave when handling the site's content:
@@ -193,9 +208,6 @@ Security headers are HTTP response headers that tell browsers how to behave when
 
 **Description: Generates a cryptographically secure random secret key for session management.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 import secrets
@@ -205,6 +217,9 @@ app = Flask(__name__)
 # Generate a strong random secret key for session security
 app.secret_key = secrets.token_hex(32)
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application uses Python's `secrets` module to generate a cryptographically secure random secret key with 32 bytes of entropy (64 hexadecimal characters). This key is used to sign session cookies, ensuring they cannot be tampered with.
@@ -230,9 +245,6 @@ The application uses Python's `secrets` module to generate a cryptographically s
 
 **Description: Implements rate limiting to prevent abuse, brute force attacks, and denial of service attempts.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 from flask_limiter import Limiter
@@ -251,6 +263,9 @@ limiter = Limiter(
 def signup():
     # Function code...
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application uses Flask-Limiter to restrict the number of requests a client can make in a given time period. Different routes have different rate limits depending on their sensitivity:
@@ -492,9 +507,6 @@ Each log entry includes a timestamp, severity level, and detailed message, provi
 
 **Description: Enforces strong password requirements to enhance security of user accounts.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: user_management.py**
 ```python
 def validatePassword(password):
@@ -515,6 +527,9 @@ def validatePassword(password):
     
     return True, "Password is valid"
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application enforces password complexity requirements through regular expression pattern matching. Passwords must meet all of the following criteria:
@@ -548,9 +563,6 @@ If any requirement fails, specific feedback is provided to the user about which 
 ## 12. Two-Factor Authentication (2FA)
 
 **Description: Implements Time-based One-Time Password (TOTP) as a second authentication factor for enhanced security.**
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
 
 **Location: user_management.py**
 ```python
@@ -597,6 +609,9 @@ def verify_2fa_setup():
                                secret=secret,
                                username=username)
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application implements TOTP-based two-factor authentication:
@@ -678,7 +693,7 @@ The tests use Python's unittest framework to provide structured verification of 
 - Section 4.5: "Testing and debugging" > "Methods for ensuring security through testing"
 - Section 10.2: "Testing methods" > "Static application security testing (SAST)"
 
-## 14. Real-Time Input Validation ✨ NEW FEATURE ✨
+## 14. Real-Time Input Validation
 
 **Description: Real-time validation for form inputs that provides instant visual feedback to users as they type.**
 
@@ -795,9 +810,6 @@ This provides immediate guidance for users without requiring form submission, im
 
 **Description: Restricts feedback text length to prevent abuse and protect the application from excessive data.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 @app.route("/success.html", methods=["POST", "GET"])
@@ -810,9 +822,12 @@ def addFeedback():
             feedback = feedback[:500]
         dbHandler.insertFeedback(feedback)
         dbHandler.listFeedback()
-        return render_template("/success.html", state=True, value=session['user'], message="Feedback submitted successfully!")
+        return redirect("/success.html")
     # More code...
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application enforces a 500-character limit on user feedback submissions. When a user submits feedback, the application:
@@ -841,6 +856,7 @@ This protects the system from various issues including database size problems, U
 - Section 11: "Defensive data input handling"
 - Section 12: "Safe API development"
 - Section 13: "Efficient execution for the user"
+</details>
 
 ## 16. Visitor Count Tracking
 
@@ -1016,9 +1032,6 @@ By adding this random delay, the application makes timing attacks significantly 
 
 **Description: Implements a comprehensive Content Security Policy to prevent various cross-site attacks including XSS.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 @app.after_request
@@ -1041,6 +1054,9 @@ def setSecurityHeaders(response):
     <!-- Other head elements -->
 </head>
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application implements a comprehensive Content Security Policy (CSP) in two places:
@@ -1079,6 +1095,7 @@ This comprehensive CSP significantly reduces the risk of XSS attacks by restrict
 - Section 7.1: "Security features" > "Security measures"
 - Section 9.1: "Methods for identifying vulnerabilities and creating resilience"
 - Section 14: "Secure code for user action controls" > "Cross-site scripting (XSS)"
+</details>
 
 ## 19. URL Parameter Security
 
@@ -1229,9 +1246,6 @@ These measures prevent attackers from injecting code via HTML attributes, which 
 
 **Description: Implements Cross-Site Request Forgery (CSRF) protection using Flask-WTF's CSRF tokens.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 from flask_wtf.csrf import CSRFProtect
@@ -1249,6 +1263,9 @@ csrf = CSRFProtect(app)
     <!-- Form fields -->
 </form>
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application implements CSRF protection using Flask-WTF's CSRFProtect extension:
