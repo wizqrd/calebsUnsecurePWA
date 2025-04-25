@@ -2,9 +2,15 @@
 {% block content %}
 <div class="welcome-section">
     <h1>Welcome {{ value }}!</h1>
+    {% if message %}
+    <div class="success-message">
+        <p>{{ message }}</p>
+    </div>
+    {% endif %}
     <div class="form-container">
         <h2>Share Your Feedback</h2>
         <form action="/success.html" method="post" class="box">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="input__wrapper">
                 <textarea name="feedback" id="feedback" placeholder="Enter your feedback here" class="input__field" rows="4" required></textarea>
             </div>

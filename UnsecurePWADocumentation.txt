@@ -1,0 +1,585 @@
+﻿SECURITY FUNDAMENTALS AND ASSESSMENT REPORT
+THE UNSECURE PWA COMPANY 
+UNSECURE PWA Security Report
+<Assessor Details>
+________________
+
+
+Document details
+Assessment
+Date
+	<Month YYYY>
+	Control classification
+	Choose an item.
+	Definition
+	Choose an item.
+	Deployment model
+	Choose an item.
+	Version
+	V1.0
+	Prepared by <Assessor Organisation Name>
+Address
+	
+
+	
+
+	Assessor name
+	
+
+	
+
+	Assessor qualifications
+	
+
+	
+
+	Contact email
+	
+
+	
+
+	Prepared for <Organisation Name>
+Address
+	
+
+	
+
+	Contact name
+	
+
+	
+
+	Contact email
+	
+
+	
+
+	Revision history
+Version
+	Date
+	Description
+	Author
+	vX.X
+	DD/MM/YYYY
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	Adapted from Australian Signals Directorate’s Australian Cyber Security Centre (2022).
+Contents
+Ensure that your security report contains a Table of contents.
+To insert a Table of contents in Microsoft Word:
+1. Navigate to References > Table of Contents > Custom Table of Contents.
+2. Choose the number of heading levels you would like to display in the Table of contents.
+3. Select OK.
+To update the Table of contents:
+1. Right click on the table and select Update Field. 
+2. Select Update entire table. Your table numbers should then update to reflect your changes.
+________________
+
+
+1. Executive summary
+   1. Briefly outline the purpose of the report.
+
+
+	   2. Highlight key findings and recommendations regarding security practices in software development.
+
+
+	________________
+
+
+2. Introduction
+2.1        Overview of ‘The Unsecure PWA Company’.
+The client, ‘The Unsecure PWA Company’, has engaged us as a software engineering security specialist to provide expert advice on the security and privacy of their application. 
+This progressive web app is currently in the testing and debugging phase of the software development lifecycle and can be accessed here: Unsecure PWA.
+	2.2        Importance of secure software architecture in today’s digital landscape.
+* Reduced risk of data breaches and unauthorised access.
+* Enhanced trust and credibility with users.
+* Lower maintenance costs associated with fixing security issues.
+	________________
+
+
+Table 21 – latest trends impacting the internet and cybersecurity
+Definition
+	Characteristics
+	Example
+	Data protection
+	
+
+	
+
+	Cyber attacks
+	
+
+	
+
+	Static application security testing (SAST)
+	
+
+	
+
+	Dynamic application security testing (DAST)
+	
+
+	
+
+	Vulnerability assessment
+	
+
+	
+
+	Penetration testing
+	
+
+	
+
+	API security
+	
+
+	
+
+	Cross-site scripting (XSS)
+	
+
+	
+
+	Cross-site request forgery (CSRF)
+	
+
+	
+
+	________________
+
+
+3. Benefits of developing secure software
+3.1        Data protection
+3.1.1        Explanation of the significance of protecting sensitive data.
+Table 22 – protecting sensitive data
+Issue
+	Explanation
+	Confidentiality
+	
+
+	Integrity
+	
+
+	Availability
+	
+
+	Compliance with regulations
+	
+
+	Protection against cyber threats
+	
+
+	Customer trust
+	
+
+	Business continuity
+	
+
+	________________
+
+
+3.1.2        Strategies employed for data encryption and storage.
+
+
+	3.2        Minimising cyber attacks and vulnerabilities
+3.2.1        Benefits of minimising common cyber threats and vulnerabilities.
+Table 23 – minimising common cyber threats and vulnerabilities
+Issue
+	Explanation
+	Prevent data breaches
+	
+
+	Mitigate against cyber threats
+	
+
+	Protect customer trust 
+	
+
+	Comply with regulations
+	
+
+	Business continuity 
+	
+
+	Cost savings
+	
+
+	Competitive advantage
+	
+
+	Discussion on preventative measures implemented.
+
+
+	________________
+
+
+4. Fundamental software development steps to develop secure code
+4.1        Requirements definition for client: ‘The Unsecure PWA Company’
+Table 24 – requirements definition for client
+Requirement
+	Description
+	Objective
+	
+
+	Tools and environment
+	
+
+	Functional requirements
+	
+
+	Non-functional requirements
+	
+
+	Testing and validation
+	
+
+	Documentation and presentation
+	
+
+	Timeline
+	
+
+	Outline the process for gathering security requirements.
+
+
+	________________
+
+
+4.2        Determining specifications
+Table 25 – determining specifications
+Specification
+	Description
+	Login page development
+	
+
+	Password hashing
+	
+
+	Input field sanitisation
+	
+
+	Two-factor authentication (2FA)
+	
+
+	Penetration testing
+	
+
+	Documentation and presentation
+	
+
+	Security tools and technologies
+	
+
+	Timeline and milestones
+	
+
+	Scalability and performance
+	
+
+	Compliance and best practices
+	
+
+	Discuss the specifications that enhance security.
+
+
+	________________
+
+
+   3.         Design
+Key design principles for secure architecture.
+4.4        Development
+Best practices for writing secure code.
+Table 26 – design and development phases
+Phases
+	Description
+	Requirement analysis
+	
+
+	Design phase
+	
+
+	Development phase
+	
+
+	Testing phase
+	
+
+	Security assessment and validation
+	
+
+	Documentation and presentation
+	
+
+	Deployment and monitoring
+	
+
+	________________
+
+
+4.5        Integration
+Security considerations during integration.
+Table 27 – integration
+Steps
+	Description
+	Assessment of existing system
+	
+
+	Requirements alignment
+	
+
+	Modular development approach
+	
+
+	API integration
+	
+
+	Database integration
+	
+
+	User interface integration
+	
+
+	Testing and validation
+	
+
+	Deployment and monitoring
+	
+
+	4.6        Testing and debugging
+Methods for ensuring security through testing.
+
+
+	________________
+
+
+   7. Installation
+Security measures taken during installation.
+
+
+	   8. Maintenance
+Strategies for ongoing security monitoring and updates.
+
+
+	________________
+
+
+5. Influence of end users on secure design features
+5.1        Analysis of how user capabilities and experiences affect security features.
+Table 28 – user capability and experience
+Issue
+	Explanation
+	User-friendly authentication
+	
+
+	Role-based access control
+	
+
+	Training and awareness
+	
+
+	User feedback and testing
+	
+
+	Simplified security controls
+	
+
+	5.2        Importance of user feedback in the design process.
+
+
+	________________
+
+
+6. Developing secure code
+6.1        Fundamental Software Design Security Concepts
+Explanation of key concepts:
+Table 29 – fundamental software design security concepts
+Concept
+	Explanation
+	Confidentiality
+	
+
+	Integrity
+	
+
+	Availability
+	
+
+	Authentication
+	
+
+	Authorisation
+	
+
+	Accountability
+	
+
+	________________
+
+
+7. Security features incorporated into software
+7.1        Overview of security features implemented.
+Table 30 – security features
+Security feature
+	Application
+	Data protection
+	
+
+	Security measures
+	
+
+	Privacy protection
+	
+
+	Regulatory compliance
+	
+
+	User authentication and authorisation
+	
+
+	________________
+
+
+8. Security by design approach
+8.1        Contribution of cryptography and sandboxing
+Explain the role of cryptography in data security to the client, ‘The Unsecure PWA company’.
+
+
+	Explain how sandboxing limits exposure to vulnerabilities.
+
+
+	Summarise security by design for the client.
+
+
+	________________
+8.2        Privacy by design approach
+Provide the client with the principles of proactive privacy measures.
+
+
+	Explain the importance of embedding privacy into software design to the client.
+
+
+	________________
+
+
+9. Testing and evaluating security and resilience
+9.1        Provide the client, ‘The Unsecure PWA Company’, with methods for identifying vulnerabilities and creating resilience.
+Table 31 – methods for identifying vulnerabilities and creating resilience
+Method
+	Description
+	Hardening systems
+	
+
+	Handling breaches
+	
+
+	Disaster recovery plan
+	
+
+	________________
+
+
+10. Strategies for managing security of programming code
+   1. Code review 
+Explain to the client the process for conducting thorough code reviews.
+   2. Testing methods
+Explain SAST and DAST and the importance of vulnerability assessments and penetration testing to the client.
+Table 32 – testing methods
+Strategy
+	Explanation
+	Code review
+	
+
+	Static application security testing (SAST)
+	
+
+	Dynamic application security testing (DAST)
+	
+
+	Vulnerability assessment
+	
+
+	Penetration testing
+	
+
+	________________
+
+
+11. Defensive data input handling
+Provide the client with code snippets that demonstrate best practices for input validation, sanitisation, and error handling.
+
+
+	12. Safe API development
+Provide the client with a brief explanation of how you created secure APIs to reduce vulnerabilities.
+
+
+	________________
+
+
+13. Efficient execution for the user
+Inform the client and users of the strategies for effective memory, session, and exception management.
+Table 33 – strategies for effective memory, session, and exception management
+Strategy
+	Explanation
+	Memory management
+	
+
+	Session management
+	
+
+	Exception management
+	
+
+	14. Secure code for user action controls
+Provide the client and users with snippets of code to explain how you have protected against.
+Table 34 – secure code samples
+Vulnerability
+	Code sample
+	Broken authentication
+	
+
+	Cross-site scripting (XSS)
+	
+
+	CSRF
+	
+
+	Invalid forwarding and redirecting
+	
+
+	Race conditions
+	
+
+	________________
+
+
+15. Protecting against file attacks
+Provide the client and users with snippets of code that demonstrate how to safeguard user files from side channel attacks.
+
+
+	16. Conclusion
+Summarise key findings and recommendations for enhancing security in ‘The Unsecure PWA Company’, including the enterprise benefits and how secure practices improve products and influence future developments.
+
+
+	17. References
+List of resources and references used in the report.
+18. Security report appendix
+Any additional information or supporting documents.

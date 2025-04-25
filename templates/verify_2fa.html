@@ -1,0 +1,24 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="form-container">
+    <h1>Two-Factor Authentication</h1>
+    {% if error %}
+    <div class="error-message">
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
+    <p>To complete your login, please enter the 6-digit code from your authenticator app.</p>
+    
+    <form action="/verify_login_2fa" method="post" class="box">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="username" value="{{ username }}">
+        <div class="input__wrapper">
+            <label for="token">Authentication Code:</label>
+            <input type="text" name="token" id="token" placeholder="e.g. 123456" class="input__field" required pattern="[0-9]{6}" maxlength="6">
+        </div>
+        <div class="input__wrapper">
+            <button type="submit" class="btn">Verify and Log In</button>
+        </div>
+    </form>
+</div>
+{% endblock %} 

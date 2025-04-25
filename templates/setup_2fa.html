@@ -1,0 +1,28 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="form-container">
+    <h1>Set Up Two-Factor Authentication</h1>
+    <p>Scan this QR code with your authenticator app (like Google Authenticator):</p>
+    
+    <div class="qr-container">
+        <img src="{{ qr_code }}" alt="QR Code for 2FA">
+    </div>
+    
+    <p>Or manually enter this secret key:</p>
+    <div class="secret-key">
+        <code>{{ secret }}</code>
+    </div>
+    
+    <form action="/verify_2fa" method="post" class="box">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="username" value="{{ username }}">
+        <div class="input__wrapper">
+            <label for="token">Enter the 6-digit code from your app:</label>
+            <input type="text" name="token" id="token" placeholder="e.g. 123456" class="input__field" required pattern="[0-9]{6}" maxlength="6">
+        </div>
+        <div class="input__wrapper">
+            <button type="submit" class="btn">Verify and Complete Setup</button>
+        </div>
+    </form>
+</div>
+{% endblock %} 

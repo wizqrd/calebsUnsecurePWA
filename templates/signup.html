@@ -2,12 +2,31 @@
 {% block content %}
 <div class="form-container">
     <h1>Create an Account</h1>
+    {% if error %}
+    <div class="error-message">
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
     <form action="/signup.html" method="POST" class="box">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="input__wrapper">
             <input type="text" name="username" placeholder="Username" class="input__field" required>
+        </div>
+        <div class="input__wrapper">
+            <input type="email" name="email" placeholder="Email Address" class="input__field" required>
         </div>            
         <div class="input__wrapper">
             <input type="password" name="password" placeholder="Password" class="input__field" required>
+            <div class="password-info">
+                <p>Password must:</p>
+                <ul>
+                    <li>Be between 8 and 20 characters</li>
+                    <li>Contain at least one uppercase letter</li>
+                    <li>Contain at least one lowercase letter</li>
+                    <li>Contain at least one number</li>
+                    <li>Contain at least one special character</li>
+                </ul>
+            </div>
         </div>
         <div class="input__wrapper">
             <input type="date" name="dob" placeholder="Date of Birth" class="input__field" required>
@@ -16,7 +35,7 @@
             <button type="submit" class="btn">Create Account</button>
         </div>
         <div class="form-footer">
-            <p>Already have an account? <a href="?url=/">Log in</a></p>
+            <p>Already have an account? <a href="/">Log in</a></p>
         </div>
     </form>
 </div>
