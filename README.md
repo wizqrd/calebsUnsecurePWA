@@ -28,6 +28,10 @@ This document tracks the security improvements made to the PWA application and h
 19. [How to Run the Application](#how-to-run-the-application)
 20. [Running Tests](#running-tests)
 21. [References](#references)
+22. [Content Security Policy (CSP) Implementation](#18-content-security-policy-csp-implementation)
+23. [URL Parameter Security](#19-url-parameter-security)
+24. [HTML Attribute Protection](#20-html-attribute-protection)
+25. [CSRF Protection with Flask-WTF](#21-csrf-protection-with-flask-wtf)
 
 ## 1. Password Hashing (Data Protection)
 
@@ -962,12 +966,22 @@ By adding this random delay, the application makes timing attacks significantly 
 ## Security Checklist Status
 
 ### Cross-Frame Scripting (XFS) Prevention
+- [x] Implement Content Security Policy (CSP) to block iframe loading
 - [x] Set X-Frame-Options header to DENY or SAMEORIGIN
 - [x] Monitor server logs for unusually repetitive GET calls
 
 ### Cross-Site Scripting (XSS) Prevention
 - [x] Implement input validation and sanitization for all user inputs
+- [x] Set proper Content Security Policy (CSP) to block SVG and SCRIPT tags
 - [x] Declare proper HTML lang attribute and charset (UTF-8)
+- [x] Implement HTML attribute value sanitization
+- [x] Use static form IDs to prevent dynamic attribute-based XSS
+
+### Cross-Site Request Forgery (CSRF) Prevention
+- [x] Implement synchronizer token pattern (STP) for all forms
+- [x] Use Flask-WTF for built-in CSRF protection
+- [x] Implement multi-factor authentication for administrative operations
+- [x] Implement server-side Content Security Policy
 
 ### SQL Injection Prevention
 - [x] Use parameterized queries instead of string concatenation
@@ -979,12 +993,14 @@ By adding this random delay, the application makes timing attacks significantly 
 - [x] Implement rate limiting to prevent DoS attacks (Flask-Limiter)
 - [x] Configure proper CORS settings (Flask-CORS) with domain restrictions if possible
 - [x] Implement detailed logging of all API requests
+- [x] Prevent sensitive information leakage in URL parameters
 
 ### General Security Measures
 - [x] Implement secure password storage with proper hashing and salting
 - [x] Set up proper session management with secure cookies
 - [x] Configure secure headers
 - [x] Implement proper error handling that doesn't leak sensitive information
+- [x] Use session-based message storage instead of URL parameters
 
 ### Additional Security Features
 - [x] Email validation in registration
@@ -994,8 +1010,277 @@ By adding this random delay, the application makes timing attacks significantly 
 - [x] Limited input length for feedback
 - [x] User-friendly error messages
 - [x] Real-time input validation feedback
+- [x] Interception and handling of potentially vulnerable routes
 
-## 18. How to Run the Application
+## 18. Content Security Policy (CSP) Implementation
+
+**Description: Implements a comprehensive Content Security Policy to prevent various cross-site attacks including XSS.**
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
+**Location: main.py**
+```python
+@app.after_request
+def setSecurityHeaders(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'"
+    return response
+```
+
+**Location: templates/layout.html**
+```html
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self';">
+    <!-- Other head elements -->
+</head>
+```
+
+**How It Works:**
+The application implements a comprehensive Content Security Policy (CSP) in two places:
+
+1. **HTTP Headers** - The server sets the CSP header in all HTTP responses via Flask's `after_request` hook
+2. **Meta Tag** - A corresponding meta tag is added to HTML documents as a backup defense
+
+The policy includes several key protections:
+
+- `default-src 'self'` - Restricts resources to come only from the application's own origin
+- `script-src 'self'` - Allows JavaScript only from the same origin, blocking inline scripts and external sources
+- `style-src 'self'` - Restricts CSS to the same origin
+- `img-src 'self' data:` - Allows images from the same origin and data URIs (for QR codes)
+- `frame-src 'none'` - Prevents the page from being framed, protecting against clickjacking
+- `frame-ancestors 'none'` - Additional protection against framing
+- `form-action 'self'` - Ensures forms can only be submitted to the same origin
+
+This comprehensive CSP significantly reduces the risk of XSS attacks by restricting what resources can load and from where.
+
+**Implementation Details:**
+- HTTP-header based CSP for universal browser support
+- Meta tag as a defense-in-depth measure
+- Strict resource restrictions to same-origin
+- Complete block on frame usage
+- Explicit handling of different content types
+</details>
+
+**Key Benefits:**
+- Prevents execution of malicious injected scripts
+- Blocks loading of unauthorized resources
+- Provides defense-in-depth against XSS attacks
+- Protects against clickjacking attacks
+- Alerts browsers of potential security violations
+
+**Documentation Alignment:**
+- Section 7.1: "Security features" > "Security measures"
+- Section 9.1: "Methods for identifying vulnerabilities and creating resilience"
+- Section 14: "Secure code for user action controls" > "Cross-site scripting (XSS)"
+
+## 19. URL Parameter Security
+
+**Description: Implements protection against sensitive information leakage in URLs and prevents parameter-based attacks.**
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
+**Location: main.py**
+```python
+# Check for sensitive parameters in URL requests
+@app.before_request
+def check_sensitive_parameters():
+    # Only check GET requests (where parameters are in URL)
+    if request.method == 'GET':
+        # List of sensitive parameter names to check for
+        sensitive_params = ['username', 'userName', 'user', 'password', 'apikey', 'key', 'token', 'secret']
+        
+        # Check if any sensitive parameters are in the query string
+        for param in sensitive_params:
+            if param.lower() in [k.lower() for k in request.args.keys()]:
+                # If this is an API-like path, return a proper error response
+                if '/UI/' in request.path or '/api/' in request.path:
+                    return jsonify({
+                        "error": "Sensitive information should not be passed in URL parameters",
+                        "code": 400
+                    }), 400
+                # For regular web pages, redirect to a safe page
+                return redirect("/")
+```
+
+**Session-Based Message Storage Example:**
+```python
+@app.route("/logout")
+def logout():
+    session.pop('user', None)
+    session.pop('temp_username', None)
+    # Store message in session instead of URL parameter
+    session['message'] = "You have been logged out successfully."
+    return redirect("/")
+
+@app.route("/", methods=["POST", "GET"])
+def home():
+    error = None
+    # Get message from session instead of URL
+    message = None
+    if 'message' in session:
+        message = session.pop('message')
+    
+    # Rest of the function...
+    return render_template("/index.html", message=message, error=error)
+```
+
+**How It Works:**
+The application implements several layers of protection against sensitive information leakage in URLs:
+
+1. **Pre-Request Filtering** - A `before_request` hook checks all incoming GET requests for sensitive parameters like usernames, passwords, or API keys
+2. **Session-Based Messages** - Information like success/error messages is stored in the session instead of being passed as URL parameters
+3. **POST/Redirect/GET Pattern** - After form submissions, the application redirects to a new page instead of rendering directly, preventing form resubmission with sensitive data
+4. **Special Route Handlers** - Dedicated routes handle potentially problematic paths identified in security scans
+
+This comprehensive approach ensures that sensitive information doesn't appear in:
+- Browser address bars
+- Server logs
+- Browser history
+- Referrer headers
+
+**Implementation Details:**
+- Checks all GET requests for sensitive parameter names
+- Case-insensitive parameter matching
+- Different handling for API paths vs. web pages
+- Session-based flash message pattern
+- Sanitizes URL parameters before use
+</details>
+
+**Key Benefits:**
+- Prevents leakage of sensitive data in URLs
+- Improves compliance with security standards like PCI-DSS
+- Reduces risks from browser history and server logs
+- Protects against URL manipulation attacks
+- Maintains user privacy when sharing links
+
+**Documentation Alignment:**
+- Section 3.1: "Data protection" > "Strategies employed for data encryption and storage"
+- Section 7.1: "Security features" > "Privacy protection"
+- Section 8.2: "Privacy by design approach"
+- Section 14: "Secure code for user action controls" > "Invalid forwarding and redirecting"
+
+## 20. HTML Attribute Protection
+
+**Description: Implements protection against HTML attribute injection to prevent XSS attacks through attribute values.**
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
+**Location: main.py**
+```python
+# Additional function to specifically sanitize HTML attribute values
+def sanitizeAttributeValue(value):
+    if value is None:
+        return ""
+    # Remove potentially dangerous characters for attributes
+    sanitized = re.sub(r'[&<>"\'`=]', '', str(value))
+    # Ensure the value doesn't start with 'javascript:' or similar
+    sanitized = re.sub(r'^(javascript|data|vbscript):', '', sanitized, flags=re.IGNORECASE)
+    return sanitized
+```
+
+**Static Form IDs Example:**
+```html
+<!-- Before: Potentially dynamically generated ID -->
+<form action="/" method="POST" class="box">
+
+<!-- After: Static, hardcoded ID -->
+<form action="/" method="POST" class="box" id="login-form">
+```
+
+**How It Works:**
+The application includes specific protections against HTML attribute-based XSS attacks:
+
+1. **Attribute Value Sanitization** - A specialized function removes characters that could break out of HTML attributes
+2. **Protocol Handler Blocking** - Prevents dangerous URI schemes like `javascript:` from being used in attributes
+3. **Static Form IDs** - All forms use static, hardcoded IDs instead of dynamically generated ones that might include user input
+4. **Route Protection** - Special routes intercept potentially dangerous paths that security scanners might test
+
+These measures prevent attackers from injecting code via HTML attributes, which is a common XSS vector that regular HTML escaping doesn't always catch.
+
+**Implementation Details:**
+- Targeted regular expression pattern matching
+- Case-insensitive protocol handler detection
+- Consistent use of static IDs across all forms
+- Applies to URL parameters, form IDs, and other attribute values
+</details>
+
+**Key Benefits:**
+- Closes a common XSS vulnerability vector
+- Prevents attribute-based script injection
+- Complements standard HTML escaping
+- Protects against event handler injection
+- Reduces attack surface in the UI layer
+
+**Documentation Alignment:**
+- Section 6.1: "Fundamental Software Design Security Concepts" > "Integrity"
+- Section 11: "Defensive data input handling"
+- Section 14: "Secure code for user action controls" > "Cross-site scripting (XSS)"
+
+## 21. CSRF Protection with Flask-WTF
+
+**Description: Implements Cross-Site Request Forgery (CSRF) protection using Flask-WTF's CSRF tokens.**
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
+**Location: main.py**
+```python
+from flask_wtf.csrf import CSRFProtect
+# More imports...
+
+app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
+csrf = CSRFProtect(app)
+```
+
+**Template Implementation:**
+```html
+<form action="/" method="POST" class="box" id="login-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <!-- Form fields -->
+</form>
+```
+
+**How It Works:**
+The application implements CSRF protection using Flask-WTF's CSRFProtect extension:
+
+1. **Token Generation** - A unique CSRF token is generated for each user session
+2. **Form Integration** - Every form in the application includes a hidden input with the CSRF token
+3. **Automatic Validation** - Flask-WTF automatically validates the token on form submission
+4. **Consistent Implementation** - All forms (login, signup, feedback, 2FA) include the token
+
+This prevents attackers from tricking users into submitting unauthorized requests, as the attacker would need to know the user's unique CSRF token, which isn't accessible across domains.
+
+**Implementation Details:**
+- Server-side token generation and validation
+- Per-session unique tokens
+- Hidden form fields for token transmission
+- Automatic request rejection for invalid tokens
+- Protection for all POST endpoints
+</details>
+
+**Key Benefits:**
+- Prevents cross-site request forgery attacks
+- Ensures form submissions come from legitimate sources
+- Protects against session riding attacks
+- Validates user intent for all sensitive actions
+- Implements industry-standard synchronizer token pattern
+
+**Documentation Alignment:**
+- Section 7.1: "Security features" > "Security measures"
+- Section 10.2: "Testing methods" > "Vulnerability assessment"
+- Section 14: "Secure code for user action controls" > "CSRF"
+
+## 22. How to Run the Application
 
 1. Install dependencies:
    ```

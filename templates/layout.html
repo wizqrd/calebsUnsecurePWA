@@ -4,6 +4,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self';">
 	<link rel="stylesheet" type="text/css" href="static/css/style.css">
         <title>The Unsecure PWA</title>
         <link rel="manifest" href="static/manifest.json" />
@@ -18,8 +19,8 @@
                 <h1>The Unsecure PWA</h1>
             </div>
             <ul class="topnav">
-                <li><a href="?url=/">Home</a></li>
-                <li><a href="?url=/signup.html">Signup</a></li>
+                <li><a href="/">Home</a></li>
+                <li><a href="/signup.html">Signup</a></li>
                 {% if state %}
                     <li><a href="/success.html">Success</a></li>
                     <li><a href="/logout">Logout</a></li>

@@ -7,7 +7,8 @@
         <p>{{ error }}</p>
     </div>
     {% endif %}
-    <form action="/signup.html" method="POST" class="box">
+    <form action="/signup.html" method="POST" class="box" id="signup-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="input__wrapper">
             <input type="text" name="username" id="username-input" placeholder="Username" class="input__field" required>
             <div class="validation-info">

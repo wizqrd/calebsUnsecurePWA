@@ -13,7 +13,8 @@
         <code>{{ secret }}</code>
     </div>
     
-    <form action="/verify_2fa" method="POST" class="box">
+    <form action="/verify_2fa" method="POST" class="box" id="setup-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="username" value="{{ username }}">
         <div class="input__wrapper">
             <label for="token">Enter the 6-digit code from your app:</label>
