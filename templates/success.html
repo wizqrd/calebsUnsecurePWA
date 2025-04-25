@@ -1,0 +1,26 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="welcome-section">
+    <h1>Welcome {{ value }}!</h1>
+    <div class="form-container">
+        <h2>Share Your Feedback</h2>
+        <form action="/success.html" method="post" class="box">
+            <div class="input__wrapper">
+                <textarea name="feedback" id="feedback" placeholder="Enter your feedback here" class="input__field" rows="4" required></textarea>
+            </div>
+            <div class="input__wrapper">
+                <input type="submit" class="btn" value="Submit Feedback" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<hr/>
+
+<div class="feedback-section">
+    <h2>Community Feedback</h2>
+    <div class="feedback-container">
+        {% include "partials/success_feedback.html" %}
+    </div>
+</div>
+{% endblock %}
