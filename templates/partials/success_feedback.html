@@ -1,28 +1,7 @@
-<div class="feedback-item" data-id="29">
-<p class="feedback-text">s</p>
-<p class="feedback-author">Posted by: admins</p>
-</div>
-<div class="feedback-item" data-id="28">
-<p class="feedback-text">s</p>
-<p class="feedback-author">Posted by: admins</p>
-</div>
-<div class="feedback-item" data-id="27">
-<p class="feedback-text">Test</p>
-<p class="feedback-author">Posted by: admins</p>
-</div>
-<div class="feedback-item" data-id="26">
-<p class="feedback-text">Testing Edit</p>
-<p class="feedback-author">Posted by: admins</p>
-</div>
-<div class="feedback-item" data-id="25">
-<p class="feedback-text">Not to bad</p>
-<p class="feedback-author">Posted by: Anonymous</p>
-</div>
-<div class="feedback-item" data-id="24">
-<p class="feedback-text">PLonk</p>
-<p class="feedback-author">Posted by: Anonymous</p>
-</div>
-<div class="feedback-item" data-id="12">
-<p class="feedback-text">Tempe High School Students WERE HERE!</p>
-<p class="feedback-author">Posted by: Anonymous</p>
-</div>
+{% if not feedback_items %}
+<p class="no-feedback">No feedback has been shared yet. Be the first to share your thoughts!</p>
+{% else %}
+  {% for item in feedback_items %}
+  <p>{{ item.text }}<br><small>Posted by: {{ item.username }}</small></p>
+  {% endfor %}
+{% endif %}

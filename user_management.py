@@ -341,6 +341,165 @@ def insertFeedback(feedback, username):
         return False
 
 
+def deleteFeedback(feedback_id, username):
+    """
+    Deletes feedback from the database if it belongs to the requesting user.
+    
+    This function:
+      1. Verifies the feedback exists and belongs to the user
+      2. Uses parameterized queries to prevent SQL injection
+      3. Only allows users to delete their own feedback
+    
+    Returns: True if successful, False otherwise
+    """
+    try:
+        print(f"Attempting to delete feedback ID {feedback_id} for user {username}")
+        # Ensure feedback_id is an integer (SQLite needs integers for ID comparisons)
+        feedback_id = int(feedback_id)
+        
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+        
+        # First check if the feedback entry exists
+        cur.execute("SELECT COUNT(*) FROM feedback WHERE id = ?", (feedback_id,))
+        count = cur.fetchone()[0]
+        
+        if count == 0:
+            con.close()
+            logging.warning(f"Delete attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return False
+        
+        # Check if the feedback belongs to the user
+        cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,))
+        result = cur.fetchone()
+        
+        print(f"Database query result for feedback ID {feedback_id}: {result}")
+        
+        # If feedback doesn't belong to the user
+        if not result:
+            con.close()
+            logging.warning(f"Delete attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return False
+            
+        if result[0] != username:
+            con.close()
+            logging.warning(f"Unauthorized delete attempt: User {username} tried to delete feedback #{feedback_id} owned by {result[0]}")
+            print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
+            return False
+        
+        # Delete the feedback if it belongs to the user - use explicit transaction
+        try:
+            con.execute("BEGIN TRANSACTION")
+            cur.execute("DELETE FROM feedback WHERE id = ? AND username = ?", (feedback_id, username))
+            rows_affected = cur.rowcount
+            print(f"Rows affected by delete: {rows_affected}")
+            
+            if rows_affected > 0:
+                # Commit the transaction
+                con.commit()
+                logging.info(f"Feedback #{feedback_id} deleted by {username}")
+                print(f"Successfully deleted feedback ID {feedback_id}")
+                return True
+            else:
+                # No rows affected, roll back
+                con.rollback()
+                logging.warning(f"Delete operation completed but no rows affected for feedback #{feedback_id}")
+                print(f"Delete operation completed but no rows affected")
+                return False
+        except Exception as e:
+            # Error during transaction, roll back
+            con.rollback()
+            raise e
+        finally:
+            con.close()
+    except Exception as e:
+        logging.error(f"Error deleting feedback: {str(e)}")
+        print(f"Exception in deleteFeedback: {str(e)}")
+        return False
+
+
+def editFeedback(feedback_id, new_text, username):
+    """
+    Updates existing feedback if it belongs to the requesting user.
+    
+    This function:
+      1. Verifies the feedback exists and belongs to the user
+      2. Uses parameterized queries to prevent SQL injection
+      3. Only allows users to edit their own feedback
+    
+    Returns: True if successful, False otherwise
+    """
+    try:
+        print(f"Attempting to edit feedback ID {feedback_id} for user {username}")
+        # Ensure feedback_id is an integer (SQLite needs integers for ID comparisons)
+        feedback_id = int(feedback_id)
+        
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+        
+        # First check if the feedback entry exists
+        cur.execute("SELECT COUNT(*) FROM feedback WHERE id = ?", (feedback_id,))
+        count = cur.fetchone()[0]
+        
+        if count == 0:
+            con.close()
+            logging.warning(f"Edit attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return False
+        
+        # Check if the feedback belongs to the user
+        cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,))
+        result = cur.fetchone()
+        
+        print(f"Database query result for feedback ID {feedback_id}: {result}")
+        
+        # If feedback doesn't belong to the user
+        if not result:
+            con.close()
+            logging.warning(f"Edit attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return False
+            
+        if result[0] != username:
+            con.close()
+            logging.warning(f"Unauthorized edit attempt: User {username} tried to edit feedback #{feedback_id} owned by {result[0]}")
+            print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
+            return False
+        
+        # Update the feedback if it belongs to the user - use explicit transaction
+        try:
+            con.execute("BEGIN TRANSACTION")
+            cur.execute("UPDATE feedback SET feedback = ? WHERE id = ? AND username = ?", 
+                       (new_text, feedback_id, username))
+            rows_affected = cur.rowcount
+            print(f"Rows affected by update: {rows_affected}")
+            
+            if rows_affected > 0:
+                # Commit the transaction
+                con.commit()
+                logging.info(f"Feedback #{feedback_id} edited by {username}")
+                print(f"Successfully edited feedback ID {feedback_id}")
+                return True
+            else:
+                # No rows affected, roll back
+                con.rollback()
+                logging.warning(f"Edit operation completed but no rows affected for feedback #{feedback_id}")
+                print(f"Edit operation completed but no rows affected")
+                return False
+        except Exception as e:
+            # Error during transaction, roll back
+            con.rollback()
+            raise e
+        finally:
+            con.close()
+    except Exception as e:
+        logging.error(f"Error editing feedback: {str(e)}")
+        print(f"Exception in editFeedback: {str(e)}")
+        return False
+
+
 def listFeedback():
     """
     Retrieves all feedback and generates an HTML partial for display.
@@ -353,6 +512,7 @@ def listFeedback():
     Returns: True if successful, False otherwise
     """
     try:
+        print("Retrieving feedback list from database")
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
         
@@ -360,27 +520,21 @@ def listFeedback():
         data = cur.execute("SELECT * FROM feedback ORDER BY id DESC").fetchall()
         con.close()
         
-        # Generate HTML partial for inclusion in templates
-        with open("templates/partials/success_feedback.html", "w") as f:
-            if not data:
-                # Handle case with no feedback
-                f.write('<p class="no-feedback">No feedback has been shared yet. Be the first to share your thoughts!</p>\n')
-            else:
-                # Create HTML for each feedback item
-                for row in data:
-                    feedback_id = row[0]
-                    feedback_text = row[1]
-                    username = row[2] if len(row) > 2 and row[2] is not None else "Anonymous"
-                    
-                    # Create a feedback item with simple display-only format
-                    # Note: feedback_text is already sanitized before storage in the database
-                    f.write(f'<div class="feedback-item" data-id="{feedback_id}">\n')
-                    f.write(f'<p class="feedback-text">{feedback_text}</p>\n')
-                    f.write(f'<p class="feedback-author">Posted by: {username}</p>\n')
-                    f.write('</div>\n')
+        # IMPORTANT: Do not overwrite the existing success_feedback.html file
+        # Instead, confirm that the data from the database will be displayed correctly
+        
+        # Print the feedback data to the console for debugging
+        print(f"Found {len(data)} feedback entries:")
+        for row in data:
+            feedback_id = row[0]
+            feedback_text = row[1]
+            username = row[2] if len(row) > 2 and row[2] is not None else "Anonymous"
+            print(f"  ID: {feedback_id}, User: {username}, Text: {feedback_text}")
         
         logging.info("Feedback list generated")
+        print("Feedback list generated successfully")
         return True
     except Exception as e:
         logging.error(f"Error listing feedback: {str(e)}")
+        print(f"Error listing feedback: {str(e)}")
         return False

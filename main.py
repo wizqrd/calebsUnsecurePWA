@@ -11,6 +11,7 @@ import html
 import re
 import secrets  # For generating cryptographically secure random values
 import user_management as dbHandler  # Custom module for database operations
+import sqlite3 as sql  # For database operations
 
 # ===============================
 # App setup and configuration
@@ -152,6 +153,10 @@ def home():
     if 'message' in session:
         message = session.pop('message')
     
+    # If user is already logged in, redirect to success page
+    if 'user' in session:
+        return redirect("/success.html")
+        
     # Handle redirect parameter (with security validation)
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
@@ -163,7 +168,7 @@ def home():
             return redirect("/", code=302)
             
     # Handle login form submission
-    if request.method == "POST" and not 'user' in session:
+    if request.method == "POST":
         # Only process login if user is not already logged in
         username = sanitizeInput(request.form["username"])
         password = request.form["password"]
@@ -191,23 +196,7 @@ def home():
             # This prevents username enumeration attacks
             error = "Invalid username or password"
             return render_template("/index.html", error=error)
-            
-    # Handle feedback form redirects
-    elif request.method == "POST" and 'user' in session:
-        # Validate CSRF token
-        if 'csrf_token' not in request.form:
-            session['message'] = "Invalid request. Please try again."
-            return redirect("/")
-        
-        # Redirect feedback submissions to the success page
-        session['message'] = "Please use the feedback form on the success page."
-        return redirect("/success.html")
     else:
-        # For other requests, just show the homepage
-        # If user is logged in, load feedback data
-        if 'user' in session:
-            dbHandler.listFeedback()
-            return render_template("/index.html", state=True, value=session['user'], message=message)
         # Not logged in, show login form
         return render_template("/index.html", message=message, error=error)
 
@@ -216,6 +205,11 @@ def home():
 @limiter.limit("5 per minute")  # Prevent spam registrations
 def signup():
     error = None
+    
+    # If user is already logged in, redirect to success page
+    if 'user' in session:
+        return redirect("/success.html")
+        
     # Handle redirect parameter (with security validation)
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
@@ -327,7 +321,7 @@ def verify_2fa_setup():
             # 2FA setup successful - complete login
             session['user'] = username
             session['message'] = f"Welcome {username}! Your 2FA setup was successful."
-            return redirect("/")
+            return redirect("/success.html")
         else:
             # Invalid token, show error
             return render_template("/setup_2fa.html", 
@@ -362,8 +356,8 @@ def verify_login_2fa():
             session.pop('temp_username', None)
             session['user'] = username
             session['message'] = f"Welcome {username}! You have successfully logged in."
-            # Redirect to home page after successful login
-            return redirect("/")
+            # Redirect to success page after successful login
+            return redirect("/success.html")
         else:
             # Invalid token, show error
             return render_template("/verify_2fa.html", 
@@ -382,11 +376,42 @@ def addFeedback():
     if 'user' not in session:
         return redirect("/")
     
-    # For GET requests, display the feedback page
+    # For GET requests, display the feedback page with feedback from database
     if request.method == "GET":
-        # Generate the feedback HTML partial
-        dbHandler.listFeedback()
-        return render_template("/success.html", state=True, value=session['user'])
+        # Fetch feedback items directly from the database
+        try:
+            # Connect to the database
+            con = sql.connect("database_files/database.db")
+            cur = con.cursor()
+            
+            # Get all feedback, ordered by newest first
+            feedback_items = []
+            data = cur.execute("SELECT * FROM feedback ORDER BY id DESC").fetchall()
+            
+            # Process each row into a dictionary for the template
+            for row in data:
+                feedback_id = row[0]
+                feedback_text = row[1]
+                username = row[2] if len(row) > 2 and row[2] is not None else "Anonymous"
+                
+                feedback_items.append({
+                    'id': feedback_id,
+                    'text': feedback_text,
+                    'username': username
+                })
+            
+            con.close()
+            
+            # Return the template with the feedback items from database
+            return render_template("/success.html", 
+                                  state=True, 
+                                  value=session['user'], 
+                                  feedback_items=feedback_items)
+                                  
+        except Exception as e:
+            print(f"Error fetching feedback: {str(e)}")
+            session['message'] = "Error loading feedback items."
+            return render_template("/success.html", state=True, value=session['user'], feedback_items=[])
     
     # For POST requests, process new feedback submission
     if request.method == "POST":
@@ -409,14 +434,23 @@ def addFeedback():
             feedback = feedback[:500]
         
         # Store feedback in database
-        success = dbHandler.insertFeedback(feedback, session['user'])
-        if success:
-            # Regenerate feedback HTML partial
-            dbHandler.listFeedback()
+        try:
+            # Connect to the database directly
+            con = sql.connect("database_files/database.db")
+            cur = con.cursor()
+            
+            # Insert the new feedback with parameterized query to prevent SQL injection
+            cur.execute("INSERT INTO feedback (feedback, username) VALUES (?, ?)", 
+                       (feedback, session['user']))
+            con.commit()
+            con.close()
+            
             session['message'] = "Feedback submitted successfully!"
-        else:
+        except Exception as e:
+            print(f"Error inserting feedback: {str(e)}")
             session['message'] = "Failed to submit feedback. Please try again."
         
+        # Refresh page to show new feedback
         return redirect("/success.html")
 
 # ===============================
