@@ -15,7 +15,7 @@
                 <textarea name="feedback" id="feedback" placeholder="Enter your feedback here" class="input__field" rows="4" required></textarea>
             </div>
             <div class="input__wrapper">
-                <input type="submit" class="btn" value="Submit Feedback" />
+                <button type="submit" class="btn">Submit Feedback</button>
             </div>
         </form>
     </div>
@@ -25,8 +25,15 @@
 
 <div class="feedback-section">
     <h2>Community Feedback</h2>
-    <div class="feedback-container">
+    <div class="feedback-container" id="feedback-container">
         {% include "partials/success_feedback.html" %}
     </div>
 </div>
+
+<script>
+    // Basic initialization when document is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Feedback board loaded");
+    });
+</script>
 {% endblock %}

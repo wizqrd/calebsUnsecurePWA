@@ -1,37 +1,52 @@
 # Secure PWA Implementation
 
-This document tracks the security improvements made to the PWA application and how they align with security requirements.
+This document tracks the security improvements made to the PWA application and demonstrates how they align with the security requirements outlined in the UnsecurePWADocumentation.
 
 ## Latest Updates
-[Real-Time Input Validation](#14-real-time-input-validation) - Provides instant visual feedback for form fields as users type, improving user experience and security.
+- [Server Header Suppression](#26-server-header-suppression) - Prevents information disclosure by suppressing server version details in HTTP headers, addressing OWASP ZAP vulnerability findings.
+- [CSRF Protection with Flask-WTF](#21-csrf-protection-with-flask-wtf) - Implements Cross-Site Request Forgery protection using synchronizer tokens.
+- [Real-Time Input Validation](#14-real-time-input-validation) - Provides instant visual feedback for form fields as users type.
+- [HTML Attribute Protection](#20-html-attribute-protection) - Prevents attribute-based XSS attacks through specialized sanitization.
 
 ## Table of Contents
-1. [Password Hashing (Data Protection)](#1-password-hashing-data-protection)
-2. [SQL Injection Prevention](#2-sql-injection-prevention)
-3. [Input Sanitization for XSS Prevention](#3-input-sanitization-for-xss-prevention)
-4. [Security Headers for XFS Prevention](#4-security-headers-for-xfs-prevention)
-5. [Secure Random Secret Key](#5-secure-random-secret-key)
-6. [Rate Limiting for API Security](#6-rate-limiting-for-api-security)
-7. [Secure Redirects](#7-secure-redirects)
-8. [Secure Session Management](#8-secure-session-management)
-9. [Email Field in Registration](#9-email-field-in-registration)
-10. [Comprehensive Logging](#10-comprehensive-logging)
-11. [Password Complexity Validation](#11-password-complexity-validation)
-12. [Two-Factor Authentication (2FA)](#12-two-factor-authentication-2fa)
-   - [Understanding TOTP Authentication](#121-understanding-totp-authentication)
-13. [Unit Testing](#13-unit-testing)
-14. [Real-Time Input Validation](#14-real-time-input-validation) **NEW FEATURE**
-15. [Feedback Length Limiting](#15-feedback-length-limiting) **NEW FEATURE**
-16. [Visitor Count Tracking](#16-visitor-count-tracking) **NEW FEATURE**
-17. [Anti-Timing Attack Measures](#17-anti-timing-attack-measures) **NEW FEATURE**
-18. [Security Checklist Status](#security-checklist-status)
-19. [How to Run the Application](#how-to-run-the-application)
-20. [Running Tests](#running-tests)
-21. [References](#references)
-22. [Content Security Policy (CSP) Implementation](#18-content-security-policy-csp-implementation)
-23. [URL Parameter Security](#19-url-parameter-security)
-24. [HTML Attribute Protection](#20-html-attribute-protection)
-25. [CSRF Protection with Flask-WTF](#21-csrf-protection-with-flask-wtf)
+
+### Authentication & User Management
+1. [Secure Random Secret Key](#5-secure-random-secret-key)
+2. [Password Hashing](#1-password-hashing-data-protection)
+3. [Password Complexity Validation](#11-password-complexity-validation)
+4. [Email Field in Registration](#9-email-field-in-registration)
+5. [Two-Factor Authentication (2FA)](#12-two-factor-authentication-2fa)
+6. [Secure Session Management](#8-secure-session-management)
+7. [Anti-Timing Attack Measures](#17-anti-timing-attack-measures)
+
+### Data Protection & Input Handling
+8. [SQL Injection Prevention](#2-sql-injection-prevention)
+9. [Input Sanitization for XSS Prevention](#3-input-sanitization-for-xss-prevention)
+10. [HTML Attribute Protection](#20-html-attribute-protection)
+11. [Real-Time Input Validation](#14-real-time-input-validation)
+12. [Feedback Length Limiting](#15-feedback-length-limiting)
+
+### HTTP Security Headers & Policies
+13. [Security Headers for XFS Prevention](#4-security-headers-for-xfs-prevention)
+14. [Content Security Policy (CSP)](#18-content-security-policy-csp-implementation)
+15. [Server Header Suppression](#26-server-header-suppression)
+
+### Request & API Security
+16. [Rate Limiting for API Security](#6-rate-limiting-for-api-security)
+17. [CSRF Protection with Flask-WTF](#21-csrf-protection-with-flask-wtf)
+18. [Secure Redirects](#7-secure-redirects)
+19. [URL Parameter Security](#19-url-parameter-security)
+
+### Monitoring & Maintenance
+20. [Comprehensive Logging](#10-comprehensive-logging)
+21. [Visitor Count Tracking](#16-visitor-count-tracking)
+22. [Unit Testing](#13-unit-testing)
+
+### Appendices
+23. [Security Checklist Status](#security-checklist-status)
+24. [How to Run the Application](#how-to-run-the-application)
+25. [Running Tests](#running-tests)
+26. [References](#references)
 
 ## 1. Password Hashing (Data Protection)
 
@@ -348,9 +363,6 @@ The application validates all redirect URLs to ensure they point either to inter
 
 **Description: Configures secure session cookies to protect user sessions from various attacks.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 if __name__ == "__main__":
@@ -359,17 +371,31 @@ if __name__ == "__main__":
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = 'Lax'
-    app.run(debug=True, host="0.0.0.0", port=8080)
+    
+    # Suppress server header by using a custom ServerClass
+    from werkzeug.serving import WSGIRequestHandler
+    
+    class CustomRequestHandler(WSGIRequestHandler):
+        def version_string(self):
+            return ''  # Return empty string instead of default server version
+    
+    host = "0.0.0.0"
+    port = 8000
+    
+    app.run(debug=True, host=host, port=port, request_handler=CustomRequestHandler)
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application uses Flask's session management with enhanced security configurations:
 
-1. **Secure Flag** - Ensures cookies are only sent over HTTPS connections, preventing interception over insecure networks.
+1. **Secure Flag**: Ensures cookies are only sent over HTTPS connections, preventing interception over insecure networks.
 
-2. **HttpOnly Flag** - Prevents JavaScript from accessing the session cookie, protecting against XSS attacks that attempt to steal session identifiers.
+2. **HttpOnly Flag**: Prevents JavaScript from accessing the session cookie, protecting against XSS attacks that attempt to steal session identifiers.
 
-3. **SameSite Flag** - Set to 'Lax' mode, which prevents cookies from being sent in cross-site requests except for top-level navigations, protecting against CSRF attacks.
+3. **SameSite Flag**: Set to 'Lax' mode, which prevents cookies from being sent in cross-site requests except for top-level navigations, protecting against CSRF attacks.
 
 **Implementation Details:**
 - Secure cookie configuration
@@ -388,13 +414,11 @@ The application uses Flask's session management with enhanced security configura
 **Documentation Alignment:**
 - Section 7.1: "Security features" > "User authentication and authorisation"
 - Section 13: "Efficient execution for the user" > "Session management"
+</details>
 
 ## 9. Email Field in Registration
 
 **Description: Implements email collection in user registration for account verification and communication.**
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
 
 **Location: user_management.py**
 ```python
@@ -414,13 +438,13 @@ def addEmailColumnIfNotExists():
     except Exception as e:
         logging.error(f"Error adding columns: {str(e)}")
 
-def insertUser(username, password, DoB, email=""):
+def insertUser(username, password, dob, email=""):
     try:
         addEmailColumnIfNotExists()
         # More code...
         cur.execute(
             "INSERT INTO users (username,password,dateOfBirth,email,totp_secret) VALUES (?,?,?,?,?)",
-            (username, hashedPassword, DoB, email, totp_secret),
+            (username, hashedPassword, dob, email, totp_secret),
         )
         # More code...
 ```
@@ -431,6 +455,9 @@ def insertUser(username, password, DoB, email=""):
     <input type="email" name="email" placeholder="Email Address" class="input__field" required>
 </div>
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application collects and stores email addresses during registration using proper HTML5 validation. The database schema is dynamically updated if needed to ensure the email field exists.
@@ -456,16 +483,13 @@ The application collects and stores email addresses during registration using pr
 
 **Description: Implements detailed security logging to track and analyze security events and potential issues.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: user_management.py**
 ```python
 logging.basicConfig(filename='security_log.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Example of logging usage
-def insertUser(username, password, DoB, email=""):
+def insertUser(username, password, dob, email=""):
     try:
         # Function code...
         logging.info(f"New user created: {username}")
@@ -473,14 +497,17 @@ def insertUser(username, password, DoB, email=""):
         logging.error(f"Error creating user: {str(e)}")
 ```
 
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
 **How It Works:**
 The application maintains a comprehensive security log that captures various security-relevant events:
 
-1. **Authentication Events** - Successful and failed login attempts
-2. **Account Management** - User creation and modification
-3. **Security Operations** - 2FA setup and verification
-4. **System Errors** - Exceptions and error conditions
-5. **Administrative Actions** - Database operations and system changes
+1. **Authentication Events**: Successful and failed login attempts
+2. **Account Management**: User creation and modification
+3. **Security Operations**: 2FA setup and verification
+4. **System Errors**: Exceptions and error conditions
+5. **Administrative Actions**: Database operations and system changes
 
 Each log entry includes a timestamp, severity level, and detailed message, providing a complete audit trail for security analysis.
 
@@ -502,6 +529,7 @@ Each log entry includes a timestamp, severity level, and detailed message, provi
 - Section 4.8: "Maintenance" > "Strategies for ongoing security monitoring and updates"
 - Section 11: "Defensive data input handling" > "Error handling"
 - Section 13: "Efficient execution for the user" > "Exception management"
+</details>
 
 ## 11. Password Complexity Validation
 
@@ -644,9 +672,6 @@ The application implements TOTP-based two-factor authentication:
 
 **Description: Implements automated tests to verify security features are working correctly.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: tests.py**
 ```python
 def test_password_validation(self):
@@ -664,14 +689,17 @@ def test_password_validation(self):
     self.assertFalse(valid)
 ```
 
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
 **How It Works:**
 The application includes a suite of automated tests that verify the correct implementation and behavior of security features. These tests cover various aspects:
 
-1. **Password Validation** - Tests for all password complexity rules
-2. **Input Sanitization** - Verifies XSS protection is working
-3. **Authentication Logic** - Tests login flows and 2FA verification
-4. **Access Control** - Verifies protected routes require authentication
-5. **Error Handling** - Tests for proper handling of invalid inputs
+1. **Password Validation**: Tests for all password complexity rules
+2. **Input Sanitization**: Verifies XSS protection is working
+3. **Authentication Logic**: Tests login flows and 2FA verification
+4. **Access Control**: Verifies protected routes require authentication
+5. **Error Handling**: Tests for proper handling of invalid inputs
 
 The tests use Python's unittest framework to provide structured verification of security controls, ensuring they continue to function as expected.
 
@@ -692,13 +720,11 @@ The tests use Python's unittest framework to provide structured verification of 
 **Documentation Alignment:**
 - Section 4.5: "Testing and debugging" > "Methods for ensuring security through testing"
 - Section 10.2: "Testing methods" > "Static application security testing (SAST)"
+</details>
 
 ## 14. Real-Time Input Validation
 
-**Description: Real-time validation for form inputs that provides instant visual feedback to users as they type.**
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
+**Description: Implements client-side validation for form inputs that provides instant visual feedback to users as they type.**
 
 **Location: templates/signup.html**
 ```html
@@ -707,7 +733,7 @@ The tests use Python's unittest framework to provide structured verification of 
     <div class="validation-info">
         <p>Username must:</p>
         <ul>
-            <li id="username-length">Be at least 3 characters long</li>
+            <li id="username-length">Be between 3 and 20 characters long</li>
             <li id="username-alphanumeric">Contain only letters, numbers, and underscores</li>
         </ul>
     </div>
@@ -728,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const usernameAlphanumericReq = document.getElementById('username-alphanumeric');
         
         // Regular expressions for validation
-        const usernameLengthRegex = /^.{3,}$/;
+        const usernameLengthRegex = /^.{3,20}$/;
         const usernameAlphanumericRegex = /^[a-zA-Z0-9_]+$/;
         
         usernameInput.addEventListener('input', function() {
@@ -757,47 +783,43 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 ```
 
-**Location: static/css/style.css**
-```css
-.validation-info {
-    margin-top: 5px;
-    font-size: 0.8em;
-    color: #666;
-}
-
-.validation-info li.valid {
-    color: #4caf50;
-    font-weight: bold;
-}
-
-.validation-info li.invalid {
-    color: #f44336;
-}
-```
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
-The application provides instant, client-side validation feedback as users fill out forms:
+The application provides instant, client-side validation feedback as users fill out forms, improving both security and user experience:
 
-1. **Visual Indicators** - Requirements are displayed below input fields
-2. **Live Validation** - JavaScript evaluates inputs as the user types
-3. **Status Updates** - Requirements change color and show check marks or X marks
-4. **Comprehensive Rules** - Each input has specific validation requirements (username, email, password)
+1. **Validation Requirements Display**: Requirements for each field (username, email, password) are visually presented below input fields, setting clear expectations for users.
 
-This provides immediate guidance for users without requiring form submission, improving both usability and security.
+2. **Real-Time Input Checking**: JavaScript event listeners monitor user input in real-time, validating against predefined criteria:
+   - Username: Length (3-20 characters) and character set (alphanumeric + underscore)
+   - Email: Valid email format check
+   - Password: Length, uppercase, lowercase, number, and special character requirements
+
+3. **Visual Feedback System**: Requirements dynamically update as users type:
+   - Valid requirements turn green with checkmarks (✓)
+   - Invalid requirements turn red with X marks (✗)
+
+4. **Progressive Disclosure**: Validation information appears when users focus on input fields, providing guidance without cluttering the interface.
+
+This creates a feedback loop that guides users toward creating valid inputs without requiring form submission, significantly improving both security and usability.
 
 **Implementation Details:**
-- Event-driven input validation
-- Regular expression pattern matching
-- Dynamic DOM updates for feedback
-- Clear visual indicators (colors, symbols)
-- Validation for all critical form fields
+- Event-driven input validation using JavaScript
+- Regular expression pattern matching for precise validation
+- DOM manipulation for dynamic feedback updates
+- Visual indicators with color and symbol changes
+- Consistent implementation across all critical form fields
+- Integration with server-side validation as a defense-in-depth measure
 </details>
 
 **Key Benefits:**
 - Improves user experience by providing immediate feedback
-- Reduces form submission errors and frustration
-- Enhances security by guiding users to create valid inputs
-- Applies to username, email, and password fields
+- Reduces form submission errors and user frustration
+- Guides users toward creating secure credentials
+- Acts as a first line of defense against invalid inputs
+- Complements server-side validation for defense-in-depth
+- Reduces server load by catching errors before submission
 
 **Documentation Alignment:**
 - Section 4.2: "Determining specifications" > "Input field sanitisation"
@@ -922,10 +944,7 @@ This provides a simple but effective way to track application usage over time.
 
 ## 17. Anti-Timing Attack Measures
 
-**Description: Implements countermeasures against timing attacks in the authentication system.**
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
+**Description: Implements countermeasures against timing attacks in the authentication system to prevent username enumeration.**
 
 **Location: user_management.py**
 ```python
@@ -941,6 +960,7 @@ def retrieveUsers(username, password):
             
             updateVisitorCount()
             
+            # Add a small random delay to prevent timing attacks
             time.sleep(random.randint(80, 90) / 1000)
             
             if checkPassword(password, storedHash):
@@ -951,22 +971,26 @@ def retrieveUsers(username, password):
         # Error handling...
 ```
 
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
 **How It Works:**
 The application includes countermeasures against timing attacks, which are side-channel attacks that attempt to discover information by measuring the time taken for operations.
 
-The key defense is a randomized delay (between 80-90 milliseconds) added to the authentication process. This delay:
+1. **Randomized Delay**: A random delay between 80-90 milliseconds is added to the authentication process, obscuring any timing differences between valid and invalid username attempts.
 
-1. Obscures the timing difference between existing and non-existing users
-2. Makes it harder to determine if a username exists based on response time
-3. Prevents attackers from using timing analysis to enumerate valid usernames
+2. **Consistent Code Paths**: The application ensures that similar code paths are followed regardless of whether a username exists or not, further preventing timing analysis.
 
-By adding this random delay, the application makes timing attacks significantly more difficult to execute successfully.
+3. **Logging Without Timing Impact**: The application logs failed login attempts but does so in a way that doesn't affect the timing significantly.
+
+By adding this random delay and ensuring consistent code paths, the application makes timing attacks significantly more difficult to execute successfully, protecting against username enumeration.
 
 **Implementation Details:**
 - Random delay between 80-90ms during authentication
 - Consistent code paths regardless of result
 - Applied after database operations but before response
 - Random number generation for unpredictability
+- Comprehensive logging of authentication attempts
 </details>
 
 **Key Benefits:**
@@ -974,10 +998,14 @@ By adding this random delay, the application makes timing attacks significantly 
 - Prevents username enumeration via timing analysis
 - Makes brute-force attacks more time-consuming
 - Protects user privacy by concealing account existence
+- Reduces the effectiveness of automated attack tools
 
 **Documentation Alignment:**
 - Section 9.1: "Methods for identifying vulnerabilities and creating resilience"
 - Section 7.1: "Security features" > "Security measures"
+- Section 4.2: "Determining specifications" > "Security tools and technologies"
+- Section 15: "Protecting against file attacks" > "Safeguarding from side channel attacks"
+</details>
 
 ## Security Checklist Status
 
@@ -1017,6 +1045,7 @@ By adding this random delay, the application makes timing attacks significantly 
 - [x] Configure secure headers
 - [x] Implement proper error handling that doesn't leak sensitive information
 - [x] Use session-based message storage instead of URL parameters
+- [x] Suppress server headers to prevent information disclosure
 
 ### Additional Security Features
 - [x] Email validation in registration
@@ -1036,11 +1065,29 @@ By adding this random delay, the application makes timing attacks significantly 
 ```python
 @app.after_request
 def setSecurityHeaders(response):
+    # First, set X-Frame-Options as the fallback for frame-ancestors
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'"
+    
+    # Hide server information to prevent information disclosure
+    response.headers['Server'] = 'WebServer'
+    
+    # Instead of using frame-ancestors in CSP, we'll rely on X-Frame-Options
+    # This solves the "CSP: Failure to Define Directive with No Fallback" issue
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-src 'none'; "
+        "form-action 'self'"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    
     return response
 ```
 
@@ -1059,22 +1106,23 @@ def setSecurityHeaders(response):
 <summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
-The application implements a comprehensive Content Security Policy (CSP) in two places:
+The application implements a comprehensive Content Security Policy (CSP) using a defense-in-depth approach:
 
-1. **HTTP Headers** - The server sets the CSP header in all HTTP responses via Flask's `after_request` hook
-2. **Meta Tag** - A corresponding meta tag is added to HTML documents as a backup defense
+1. **HTTP Header Implementation**: The server sets the CSP header in all HTTP responses via Flask's `after_request` hook, which instructs browsers on what resources can be loaded.
 
-The policy includes several key protections:
+2. **Meta Tag Backup**: A corresponding meta tag is added to HTML documents as a secondary defense, ensuring CSP is enforced even if HTTP headers are somehow stripped.
 
-- `default-src 'self'` - Restricts resources to come only from the application's own origin
-- `script-src 'self'` - Allows JavaScript only from the same origin, blocking inline scripts and external sources
-- `style-src 'self'` - Restricts CSS to the same origin
-- `img-src 'self' data:` - Allows images from the same origin and data URIs (for QR codes)
-- `frame-src 'none'` - Prevents the page from being framed, protecting against clickjacking
-- `frame-ancestors 'none'` - Additional protection against framing
-- `form-action 'self'` - Ensures forms can only be submitted to the same origin
+3. **Resource Restriction Policy**: The policy includes several key protections:
+   - `default-src 'self'` - Restricts all resources to come only from the application's own origin
+   - `script-src 'self'` - Allows JavaScript only from the same origin, blocking inline scripts and external sources
+   - `style-src 'self'` - Restricts CSS to the same origin
+   - `img-src 'self' data:` - Allows images from the same origin and data URIs (needed for QR codes)
+   - `frame-src 'none'` - Prevents the page from being framed
+   - `form-action 'self'` - Ensures forms can only be submitted to the same origin
 
-This comprehensive CSP significantly reduces the risk of XSS attacks by restricting what resources can load and from where.
+4. **Framework Integration**: The CSP is implemented both at the server level and in the HTML templates, ensuring maximum coverage.
+
+This comprehensive CSP significantly reduces the risk of XSS attacks by restricting what resources can load and from where, creating multiple layers of defense.
 
 **Implementation Details:**
 - HTTP-header based CSP for universal browser support
@@ -1082,6 +1130,7 @@ This comprehensive CSP significantly reduces the risk of XSS attacks by restrict
 - Strict resource restrictions to same-origin
 - Complete block on frame usage
 - Explicit handling of different content types
+- Integration with other security headers
 </details>
 
 **Key Benefits:**
@@ -1090,19 +1139,18 @@ This comprehensive CSP significantly reduces the risk of XSS attacks by restrict
 - Provides defense-in-depth against XSS attacks
 - Protects against clickjacking attacks
 - Alerts browsers of potential security violations
+- Reduces the attack surface for client-side attacks
 
 **Documentation Alignment:**
 - Section 7.1: "Security features" > "Security measures"
 - Section 9.1: "Methods for identifying vulnerabilities and creating resilience"
 - Section 14: "Secure code for user action controls" > "Cross-site scripting (XSS)"
+- Section 4.2: "Determining specifications" > "Input field sanitisation"
 </details>
 
 ## 19. URL Parameter Security
 
 **Description: Implements protection against sensitive information leakage in URLs and prevents parameter-based attacks.**
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
 
 **Location: main.py**
 ```python
@@ -1127,7 +1175,7 @@ def check_sensitive_parameters():
                 return redirect("/")
 ```
 
-**Session-Based Message Storage Example:**
+**Location: main.py (Session-Based Message Storage)**
 ```python
 @app.route("/logout")
 def logout():
@@ -1149,13 +1197,19 @@ def home():
     return render_template("/index.html", message=message, error=error)
 ```
 
+<details>
+<summary><b>Click to expand implementation details</b></summary>
+
 **How It Works:**
 The application implements several layers of protection against sensitive information leakage in URLs:
 
-1. **Pre-Request Filtering** - A `before_request` hook checks all incoming GET requests for sensitive parameters like usernames, passwords, or API keys
-2. **Session-Based Messages** - Information like success/error messages is stored in the session instead of being passed as URL parameters
-3. **POST/Redirect/GET Pattern** - After form submissions, the application redirects to a new page instead of rendering directly, preventing form resubmission with sensitive data
-4. **Special Route Handlers** - Dedicated routes handle potentially problematic paths identified in security scans
+1. **Pre-Request Filtering**: A `before_request` hook checks all incoming GET requests for sensitive parameters like usernames, passwords, or API keys
+
+2. **Session-Based Messages**: Information like success/error messages is stored in the session instead of being passed as URL parameters
+
+3. **POST/Redirect/GET Pattern**: After form submissions, the application redirects to a new page instead of rendering directly, preventing form resubmission with sensitive data
+
+4. **Special Route Handlers**: Dedicated routes handle potentially problematic paths identified in security scans
 
 This comprehensive approach ensures that sensitive information doesn't appear in:
 - Browser address bars
@@ -1188,9 +1242,6 @@ This comprehensive approach ensures that sensitive information doesn't appear in
 
 **Description: Implements protection against HTML attribute injection to prevent XSS attacks through attribute values.**
 
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
 **Location: main.py**
 ```python
 # Additional function to specifically sanitize HTML attribute values
@@ -1204,22 +1255,31 @@ def sanitizeAttributeValue(value):
     return sanitized
 ```
 
-**Static Form IDs Example:**
+**Location: templates/signup.html (Static Form IDs Example)**
 ```html
 <!-- Before: Potentially dynamically generated ID -->
 <form action="/" method="POST" class="box">
 
 <!-- After: Static, hardcoded ID -->
-<form action="/" method="POST" class="box" id="login-form">
+<form action="/signup.html" method="POST" class="box" id="signup-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <!-- Form fields -->
+</form>
 ```
+
+<details>
+<summary><b>Click to expand implementation details</b></summary>
 
 **How It Works:**
 The application includes specific protections against HTML attribute-based XSS attacks:
 
-1. **Attribute Value Sanitization** - A specialized function removes characters that could break out of HTML attributes
-2. **Protocol Handler Blocking** - Prevents dangerous URI schemes like `javascript:` from being used in attributes
-3. **Static Form IDs** - All forms use static, hardcoded IDs instead of dynamically generated ones that might include user input
-4. **Route Protection** - Special routes intercept potentially dangerous paths that security scanners might test
+1. **Attribute Value Sanitization**: A specialized function removes characters that could break out of HTML attributes
+
+2. **Protocol Handler Blocking**: Prevents dangerous URI schemes like `javascript:` from being used in attributes
+
+3. **Static Form IDs**: All forms use static, hardcoded IDs instead of dynamically generated ones that might include user input
+
+4. **Route Protection**: Special routes intercept potentially dangerous paths that security scanners might test
 
 These measures prevent attackers from injecting code via HTML attributes, which is a common XSS vector that regular HTML escaping doesn't always catch.
 
@@ -1241,63 +1301,4 @@ These measures prevent attackers from injecting code via HTML attributes, which 
 - Section 6.1: "Fundamental Software Design Security Concepts" > "Integrity"
 - Section 11: "Defensive data input handling"
 - Section 14: "Secure code for user action controls" > "Cross-site scripting (XSS)"
-
-## 21. CSRF Protection with Flask-WTF
-
-**Description: Implements Cross-Site Request Forgery (CSRF) protection using Flask-WTF's CSRF tokens.**
-
-**Location: main.py**
-```python
-from flask_wtf.csrf import CSRFProtect
-# More imports...
-
-app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
-csrf = CSRFProtect(app)
-```
-
-**Template Implementation:**
-```html
-<form action="/" method="POST" class="box" id="login-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <!-- Form fields -->
-</form>
-```
-
-<details>
-<summary><b>Click to expand implementation details</b></summary>
-
-**How It Works:**
-The application implements CSRF protection using Flask-WTF's CSRFProtect extension:
-
-1. **Token Generation** - A unique CSRF token is generated for each user session
-2. **Form Integration** - Every form in the application includes a hidden input with the CSRF token
-3. **Automatic Validation** - Flask-WTF automatically validates the token on form submission
-4. **Consistent Implementation** - All forms (login, signup, feedback, 2FA) include the token
-
-This prevents attackers from tricking users into submitting unauthorized requests, as the attacker would need to know the user's unique CSRF token, which isn't accessible across domains.
-
-**Implementation Details:**
-- Server-side token generation and validation
-- Per-session unique tokens
-- Hidden form fields for token transmission
-- Automatic request rejection for invalid tokens
-- Protection for all POST endpoints
 </details>
-
-**Key Benefits:**
-- Prevents cross-site request forgery attacks
-- Ensures form submissions come from legitimate sources
-- Protects against session riding attacks
-- Validates user intent for all sensitive actions
-- Implements industry-standard synchronizer token pattern
-
-**Documentation Alignment:**
-- Section 7.1: "Security features" > "Security measures"
-- Section 10.2: "Testing methods" > "Vulnerability assessment"
-- Section 14: "Secure code for user action controls" > "CSRF"
-
-## 22. How to Run the Application
-
-1. Install dependencies:
-   ```

@@ -1,5 +1,6 @@
 {% extends 'layout.html' %}
 {% block content %}
+{% if not state %}
 <div class="form-container">
     <h1>Login</h1>
     {% if error %}
@@ -15,7 +16,14 @@
     <form action="/" method="POST" class="box" id="login-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="input__wrapper">
-            <input type="text" name="username" id="username" placeholder="Username" class="input__field" required/>
+            <input type="text" name="username" id="username-input" placeholder="Username" class="input__field" required/>
+            <div class="validation-info">
+                <p>Username must:</p>
+                <ul>
+                    <li id="username-length">Be between 3 and 20 characters long</li>
+                    <li id="username-alphanumeric">Contain only letters, numbers, and underscores</li>
+                </ul>
+            </div>
         </div>
         <div class="input__wrapper">
             <input type="password" name="password" id="password" placeholder="Password" class="input__field" required/>
@@ -28,4 +36,34 @@
         </div>
     </form>
 </div>
+{% else %}
+<div class="welcome-section">
+    <h1>Welcome {{ value }}!</h1>
+    {% if message %}
+    <div class="success-message">
+        <p>{{ message }}</p>
+    </div>
+    {% endif %}
+    <div class="cta-container">
+        <h2>What would you like to do?</h2>
+        <a href="/success.html" class="btn">Go to Feedback Page</a>
+    </div>
+</div>
+
+<hr/>
+
+<div class="feedback-section">
+    <h2>Community Feedback</h2>
+    <div class="feedback-container" id="feedback-container">
+        {% include "partials/success_feedback.html" %}
+    </div>
+</div>
+
+<script>
+    // Basic initialization when document is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Feedback board loaded");
+    });
+</script>
+{% endif %}
 {% endblock %}

@@ -9,6 +9,19 @@
     {% endif %}
     <p>To complete your login, please enter the 6-digit code from your authenticator app.</p>
     
+    {% if show_qr %}
+    <div class="qr-container">
+        <img src="{{ qr_code }}" alt="QR Code for 2FA">
+    </div>
+    
+    <p>Or manually enter this secret key:</p>
+    <div class="secret-key">
+        <code>{{ secret }}</code>
+    </div>
+    {% else %}
+    <p class="toggle-link"><a href="#" id="show-qr-toggle">Lost access to your authenticator app?</a></p>
+    {% endif %}
+    
     <form action="/verify_login_2fa" method="POST" class="box" id="verify-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="username" value="{{ username }}">
@@ -21,4 +34,16 @@
         </div>
     </form>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleLink = document.getElementById('show-qr-toggle');
+        if (toggleLink) {
+            toggleLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = '/show_qr?username={{ username }}';
+            });
+        }
+    });
+</script>
 {% endblock %} 
