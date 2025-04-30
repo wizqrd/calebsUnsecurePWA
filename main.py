@@ -1,9 +1,4 @@
-from flask import Flask
-from flask import render_template
-from flask import request
-from flask import redirect
-from flask import session
-from flask import jsonify
+from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_limiter import Limiter  # For rate limiting to prevent abuse
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect  # For Cross-Site Request Forgery protection
@@ -12,6 +7,8 @@ import re
 import secrets  # For generating cryptographically secure random values
 import user_management as dbHandler  # Custom module for database operations
 import sqlite3 as sql  # For database operations
+import logging
+import datetime
 
 # ===============================
 # App setup and configuration
@@ -36,6 +33,24 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],  # Default limits for all routes
     storage_uri="memory://",  # Store rate limiting data in memory
 )
+
+# Set up logging
+logging.basicConfig(
+    filename='app_errors.log',
+    level=logging.ERROR,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# Create a function to log errors
+def log_error(error_code, message, details=None):
+    error_data = {
+        'code': error_code,
+        'message': message,
+        'details': details,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    logging.error(f"ERROR {error_code}: {message} - {details}")
+    print(f"ERROR {error_code}: {message}")
 
 # ===============================
 # Helper functions for security
@@ -75,6 +90,55 @@ def isValidRedirect(url):
             if domain == allowed or domain.endswith("." + allowed):
                 return True
     return False
+
+# Handle URL redirection with security validation
+def handle_redirect_params():
+    if request.method == "GET" and request.args.get("url"):
+        url = request.args.get("url", "")
+        # Sanitize URL parameter
+        url = sanitizeAttributeValue(url)
+        if isValidRedirect(url):
+            return redirect(url, code=302)
+        else:
+            return redirect("/", code=302)
+    return None
+
+# Validate username format and length
+def validate_username(username, template_path):
+    if len(username) < 3 or len(username) > 20:
+        return render_template(template_path, error="Username must be between 3 and 20 characters")
+    
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return render_template(template_path, error="Username can only contain letters, numbers, and underscores")
+    
+    return None
+
+# Handle TOTP verification logic
+def handle_totp_verification(username, token, success_message, template_path, is_setup=False):
+    # Get the TOTP secret for this user
+    secret = dbHandler.getTOTPSecret(username)
+    if not secret:
+        log_error(3001, "TOTP secret not found", {'username': username})
+        return render_template("/verify_2fa.html", error="Invalid credentials", username=username)
+    
+    # Generate QR code for scanning with authenticator app
+    qrCode = dbHandler.generateQRCode(username, secret)
+    
+    # Verify the token against the secret
+    if dbHandler.verifyTOTP(secret, token):
+        # 2FA verified - complete login
+        if not is_setup:
+            session.pop('temp_username', None)
+        session['user'] = username
+        session['message'] = success_message
+        return redirect("/success.html")
+    else:
+        # Invalid token, show error
+        return render_template(template_path, 
+                          error="Invalid code. Please try again.", 
+                          qr_code=qrCode if is_setup else None,
+                          secret=secret if is_setup else None,
+                          username=username)
 
 # ===============================
 # Security middleware
@@ -125,14 +189,14 @@ def setSecurityHeaders(response):
     # Restricts which resources (scripts, styles, images) can be loaded
     # This is one of the strongest defenses against XSS attacks
     csp = (
-        "default-src 'self'; "           # Default: only allow from same origin
-        "script-src 'self'; "            # Scripts: only from same origin  
-        "style-src 'self'; "             # Styles: only from same origin
-        "img-src 'self' data:; "         # Images: from same origin or data: URLs (for QR codes)
-        "font-src 'self'; "              # Fonts: only from same origin
-        "connect-src 'self'; "           # AJAX/WebSocket: only to same origin  
-        "frame-src 'none'; "             # Frames: not allowed
-        "form-action 'self'"             # Forms: can only submit to same origin
+        "default-src 'self'; "            # Default: only allow from same origin
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # Allow inline scripts and eval for functionality
+        "style-src 'self' 'unsafe-inline'; "  # Allow inline styles
+        "img-src 'self' data:; "          # Images: from same origin or data: URLs (for QR codes)
+        "font-src 'self'; "               # Fonts: only from same origin
+        "connect-src 'self'; "            # AJAX/WebSocket: only to same origin  
+        "frame-src 'none'; "              # Frames: not allowed
+        "form-action 'self'"              # Forms: can only submit to same origin
     )
     response.headers['Content-Security-Policy'] = csp
     
@@ -158,14 +222,9 @@ def home():
         return redirect("/success.html")
         
     # Handle redirect parameter (with security validation)
-    if request.method == "GET" and request.args.get("url"):
-        url = request.args.get("url", "")
-        # Sanitize URL parameter
-        url = sanitizeAttributeValue(url)
-        if isValidRedirect(url):
-            return redirect(url, code=302)
-        else:
-            return redirect("/", code=302)
+    redirect_response = handle_redirect_params()
+    if redirect_response:
+        return redirect_response
             
     # Handle login form submission
     if request.method == "POST":
@@ -173,15 +232,10 @@ def home():
         username = sanitizeInput(request.form["username"])
         password = request.form["password"]
         
-        # Validate username length - basic validation
-        if len(username) < 3 or len(username) > 20:
-            error = "Username must be between 3 and 20 characters"
-            return render_template("/index.html", error=error)
-            
-        # Validate username characters using regular expression
-        if not re.match(r'^[a-zA-Z0-9_]+$', username):
-            error = "Username can only contain letters, numbers, and underscores"
-            return render_template("/index.html", error=error)
+        # Validate username
+        validation_result = validate_username(username, "/index.html")
+        if validation_result:
+            return validation_result
         
         # Check password against database (password verification happens in dbHandler)
         isPasswordValid, user = dbHandler.retrieveUsers(username, password)
@@ -211,14 +265,9 @@ def signup():
         return redirect("/success.html")
         
     # Handle redirect parameter (with security validation)
-    if request.method == "GET" and request.args.get("url"):
-        url = request.args.get("url", "")
-        # Sanitize URL parameter
-        url = sanitizeAttributeValue(url)
-        if isValidRedirect(url):
-            return redirect(url, code=302)
-        else:
-            return redirect("/", code=302)
+    redirect_response = handle_redirect_params()
+    if redirect_response:
+        return redirect_response
             
     # Handle registration form submission
     if request.method == "POST":
@@ -228,15 +277,10 @@ def signup():
         password = request.form["password"]  # Not sanitized as it will be hashed
         dob = sanitizeInput(request.form["dob"])
         
-        # Server-side validation of username length
-        if len(username) < 3 or len(username) > 20:
-            error = "Username must be between 3 and 20 characters"
-            return render_template("/signup.html", error=error)
-            
-        # Validate username characters
-        if not re.match(r'^[a-zA-Z0-9_]+$', username):
-            error = "Username can only contain letters, numbers, and underscores"
-            return render_template("/signup.html", error=error)
+        # Validate username
+        validation_result = validate_username(username, "/signup.html")
+        if validation_result:
+            return validation_result
         
         # Validate password complexity
         isValid, message = dbHandler.validatePassword(password)
@@ -302,33 +346,8 @@ def verify_2fa_setup():
         username = request.form["username"]
         token = request.form["token"]  # The 6-digit code from authenticator app
         
-        # Get the TOTP secret for this user
-        secret = dbHandler.getTOTPSecret(username)
-        if not secret:
-            # Generate a new secret key if the original one cannot be found
-            secret = dbHandler.generateTOTPSecret()
-            qrCode = dbHandler.generateQRCode(username, secret)
-            return render_template("/setup_2fa.html", 
-                                 error="Invalid setup. Please try again.", 
-                                 qr_code=qrCode,
-                                 secret=secret,
-                                 username=username)
-        
-        qrCode = dbHandler.generateQRCode(username, secret)
-        
-        # Verify the token against the secret
-        if dbHandler.verifyTOTP(secret, token):
-            # 2FA setup successful - complete login
-            session['user'] = username
-            session['message'] = f"Welcome {username}! Your 2FA setup was successful."
-            return redirect("/success.html")
-        else:
-            # Invalid token, show error
-            return render_template("/setup_2fa.html", 
-                               error="Invalid code. Please try again.", 
-                               qr_code=qrCode,
-                               secret=secret,
-                               username=username)
+        success_message = f"Welcome {username}! Your 2FA setup was successful."
+        return handle_totp_verification(username, token, success_message, "/setup_2fa.html", is_setup=True)
 
 # Route to verify 2FA code during login
 @app.route("/verify_login_2fa", methods=["POST"])
@@ -342,27 +361,8 @@ def verify_login_2fa():
         if 'temp_username' not in session or session['temp_username'] != username:
             return redirect("/")
         
-        # Get the TOTP secret for this user
-        secret = dbHandler.getTOTPSecret(username)
-        if not secret:
-            return render_template("/verify_2fa.html", error="Invalid credentials", username=username)
-        
-        # Generate QR code in case user needs to rescan
-        qrCode = dbHandler.generateQRCode(username, secret)
-        
-        # Verify the token against the secret
-        if dbHandler.verifyTOTP(secret, token):
-            # 2FA verified - complete login
-            session.pop('temp_username', None)
-            session['user'] = username
-            session['message'] = f"Welcome {username}! You have successfully logged in."
-            # Redirect to success page after successful login
-            return redirect("/success.html")
-        else:
-            # Invalid token, show error
-            return render_template("/verify_2fa.html", 
-                               error="Invalid code. Please try again.", 
-                               username=username)
+        success_message = f"Welcome {username}! You have successfully logged in."
+        return handle_totp_verification(username, token, success_message, "/verify_2fa.html")
 
 # ===============================
 # Feedback and Content Routes
@@ -453,6 +453,108 @@ def addFeedback():
         # Refresh page to show new feedback
         return redirect("/success.html")
 
+# Route for editing feedback
+@app.route("/edit_feedback", methods=["POST"])
+@limiter.limit("10 per minute")
+def editFeedback():
+    # Require login to access this functionality
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "You must be logged in"}), 401
+    
+    # Validate CSRF token to prevent cross-site request forgery
+    if 'csrf_token' not in request.form:
+        return jsonify({"success": False, "message": "Invalid request"}), 400
+    
+    try:
+        # Get feedback ID and new text from request
+        feedback_id = request.form.get("feedback_id")
+        new_text = request.form.get("feedback_text")
+        
+        # Validate inputs
+        if not feedback_id or not new_text or len(new_text.strip()) == 0:
+            return jsonify({"success": False, "message": "Invalid input"}), 400
+            
+        # Sanitize input to prevent XSS attacks
+        new_text = sanitizeInput(new_text)
+        
+        # Limit feedback length to prevent abuse
+        if len(new_text) > 500:
+            new_text = new_text[:500]
+        
+        # Connect to database
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+        
+        # First check if the feedback belongs to the current user
+        result = cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,)).fetchone()
+        
+        if not result:
+            con.close()
+            return jsonify({"success": False, "message": "Feedback not found"}), 404
+            
+        # Verify ownership - users can only edit their own feedback
+        if result[0] != session['user']:
+            con.close()
+            return jsonify({"success": False, "message": "You can only edit your own feedback"}), 403
+        
+        # Update the feedback
+        cur.execute("UPDATE feedback SET feedback = ? WHERE id = ?", (new_text, feedback_id))
+        con.commit()
+        con.close()
+        
+        return jsonify({"success": True, "message": "Feedback updated successfully"})
+    
+    except Exception as e:
+        log_error(5001, f"Error editing feedback: {str(e)}")
+        return jsonify({"success": False, "message": "Error updating feedback"}), 500
+
+# Route for deleting feedback
+@app.route("/delete_feedback", methods=["POST"])
+@limiter.limit("10 per minute")
+def deleteFeedback():
+    # Require login to access this functionality
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "You must be logged in"}), 401
+    
+    # Validate CSRF token to prevent cross-site request forgery
+    if 'csrf_token' not in request.form:
+        return jsonify({"success": False, "message": "Invalid request"}), 400
+    
+    try:
+        # Get feedback ID from request
+        feedback_id = request.form.get("feedback_id")
+        
+        # Validate input
+        if not feedback_id:
+            return jsonify({"success": False, "message": "Invalid input"}), 400
+        
+        # Connect to database
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+        
+        # First check if the feedback belongs to the current user
+        result = cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,)).fetchone()
+        
+        if not result:
+            con.close()
+            return jsonify({"success": False, "message": "Feedback not found"}), 404
+            
+        # Verify ownership - users can only delete their own feedback
+        if result[0] != session['user']:
+            con.close()
+            return jsonify({"success": False, "message": "You can only delete your own feedback"}), 403
+        
+        # Delete the feedback
+        cur.execute("DELETE FROM feedback WHERE id = ?", (feedback_id,))
+        con.commit()
+        con.close()
+        
+        return jsonify({"success": True, "message": "Feedback deleted successfully"})
+    
+    except Exception as e:
+        log_error(5002, f"Error deleting feedback: {str(e)}")
+        return jsonify({"success": False, "message": "Error deleting feedback"}), 500
+
 # ===============================
 # Main Code - Application Startup
 # ===============================
@@ -467,15 +569,13 @@ if __name__ == "__main__":
     app.config["SESSION_COOKIE_HTTPONLY"] = True  # Prevent JavaScript from accessing cookies
     app.config["SESSION_COOKIE_SAMESITE"] = 'Lax'  # Restrict cookie sending to same site
     
-    # Suppress server header by using a custom ServerClass
-    # This prevents information disclosure about the server software
+        # should suppress the URL from giving out details that could be private
     from werkzeug.serving import WSGIRequestHandler
     
     class CustomRequestHandler(WSGIRequestHandler):
         def version_string(self):
-            return ''  # Return empty string instead of default server version
-    
-    host = "0.0.0.0"  # Listen on all network interfaces
+            return ''  
+    host = "0.0.0.0" 
     port = 8000
     
     print(f"\nServer running!")
@@ -483,5 +583,5 @@ if __name__ == "__main__":
     print(f"Server is listening on {host}:{port}")
     print(f"Press CTRL+C to stop the server\n")
     
-    # Start the Flask development server
+    # start the server
     app.run(debug=True, host=host, port=port, request_handler=CustomRequestHandler)

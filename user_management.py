@@ -8,6 +8,15 @@ import pyotp
 import qrcode
 from io import BytesIO
 import base64
+import os
+import platform
+import errno  # For handling lock-related errors
+
+# Use appropriate locking mechanism based on platform
+if platform.system() == 'Windows':
+    import msvcrt  # For file locking on Windows
+else:
+    import fcntl  # For file locking on Unix systems
 
 # ===============================
 # Logging Configuration
@@ -17,6 +26,30 @@ import base64
 # This creates a detailed security audit trail that can be analyzed later
 logging.basicConfig(filename='security_log.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+# ===============================
+# Directory Setup
+# ===============================
+
+def ensure_directories_exist():
+    """
+    Ensures all required directories exist for the application.
+    This prevents errors when trying to create files in non-existent directories.
+    """
+    directories = [
+        "database_files",  # For database and lock files
+    ]
+    
+    for directory in directories:
+        if not os.path.exists(directory):
+            try:
+                os.makedirs(directory)
+                logging.info(f"Created directory: {directory}")
+            except Exception as e:
+                logging.error(f"Error creating directory {directory}: {str(e)}")
+
+# Call this function early to ensure directories exist
+ensure_directories_exist()
 
 # ===============================
 # Password Security Functions
@@ -300,8 +333,216 @@ def updateVisitorCount():
         logging.error(f"Error updating visitor count: {str(e)}")
 
 # ===============================
+# File Locking Helper
+# ===============================
+
+def with_file_lock(operation_name, username, callback_func, *args):
+    """
+    Helper function that handles file locking for database operations.
+    
+    This function:
+      1. Creates a lock file
+      2. Acquires an exclusive lock
+      3. Executes the callback function
+      4. Releases the lock and handles cleanup
+    
+    Args:
+        operation_name: Name of the operation (for logging)
+        username: Username performing the operation
+        callback_func: Function to execute while holding the lock
+        *args: Arguments to pass to the callback function
+        
+    Returns: Result from the callback function
+    """
+    lock_file = None
+    try:
+        # Create a lock file for feedback operations
+        os.makedirs("database_files", exist_ok=True)
+        lock_file = open("database_files/feedback.lock", "w+")
+        
+        # Try to acquire an exclusive lock, non-blocking
+        try:
+            if platform.system() == 'Windows':
+                # Windows locking mechanism
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                # Unix locking mechanism
+                fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            
+            logging.info(f"Lock acquired for {operation_name} by {username}")
+        except (IOError, OSError) as e:
+            # Handle case where lock cannot be acquired (another process has it)
+            if platform.system() == 'Windows' or (hasattr(e, 'errno') and e.errno == errno.EAGAIN):
+                logging.warning(f"Could not acquire lock for {operation_name}, another process has it")
+                if lock_file:
+                    lock_file.close()
+                # Wait a short time and try again instead of failing
+                time.sleep(random.uniform(0.1, 0.5))
+                return with_file_lock(operation_name, username, callback_func, *args)  # Recursive retry
+            else:
+                # Some other error occurred with the lock
+                raise
+        
+        # Now we have the lock, execute the callback function
+        return callback_func(*args)
+            
+    except Exception as e:
+        logging.error(f"Error in {operation_name}: {str(e)}")
+        print(f"Exception in {operation_name}: {str(e)}")
+        return False
+        
+    finally:
+        # Always release the lock and close the file, even if an exception occurred
+        if lock_file:
+            try:
+                if platform.system() == 'Windows':
+                    # Windows unlock mechanism
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    # Unix unlock mechanism
+                    fcntl.flock(lock_file, fcntl.LOCK_UN)
+                
+                lock_file.close()
+                logging.info(f"Lock released for {operation_name} by {username}")
+            except Exception as e:
+                logging.error(f"Error releasing lock: {str(e)}")
+
+# ===============================
+# Feedback Helper Functions
+# ===============================
+
+def check_feedback_ownership(feedback_id, username, operation):
+    """
+    Helper function to check if feedback exists and belongs to the user.
+    
+    Args:
+        feedback_id: ID of the feedback to check
+        username: Username to check ownership against
+        operation: Name of the operation (for logging)
+        
+    Returns: (con, cur, result) on success, (None, None, False) on failure
+    """
+    try:
+        con = sql.connect("database_files/database.db")
+        cur = con.cursor()
+        
+        # First check if the feedback entry exists
+        cur.execute("SELECT COUNT(*) FROM feedback WHERE id = ?", (feedback_id,))
+        count = cur.fetchone()[0]
+        
+        if count == 0:
+            con.close()
+            logging.warning(f"{operation} attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return None, None, False
+        
+        # Check if the feedback belongs to the user
+        cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,))
+        result = cur.fetchone()
+        
+        print(f"Database query result for feedback ID {feedback_id}: {result}")
+        
+        # If feedback doesn't belong to the user
+        if not result:
+            con.close()
+            logging.warning(f"{operation} attempt failed: Feedback #{feedback_id} not found")
+            print(f"Feedback ID {feedback_id} not found in database")
+            return None, None, False
+            
+        if result[0] != username:
+            con.close()
+            logging.warning(f"Unauthorized {operation} attempt: User {username} tried to {operation} feedback #{feedback_id} owned by {result[0]}")
+            print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
+            return None, None, False
+            
+        return con, cur, True
+        
+    except Exception as e:
+        if 'con' in locals() and con:
+            con.close()
+        logging.error(f"Error checking feedback ownership: {str(e)}")
+        print(f"Error checking feedback ownership: {str(e)}")
+        return None, None, False
+
+def execute_transaction(con, cur, operation, query, params, success_msg, failure_msg):
+    """
+    Helper function to execute a database transaction.
+    
+    Args:
+        con: Database connection
+        cur: Database cursor
+        operation: Operation name for logging
+        query: SQL query to execute
+        params: Parameters for the query
+        success_msg: Message to log on success
+        failure_msg: Message to log on failure
+        
+    Returns: True on success, False on failure
+    """
+    try:
+        con.execute("BEGIN TRANSACTION")
+        cur.execute(query, params)
+        rows_affected = cur.rowcount
+        print(f"Rows affected by {operation}: {rows_affected}")
+        
+        if rows_affected > 0:
+            # Commit the transaction
+            con.commit()
+            logging.info(success_msg)
+            print(success_msg)
+            return True
+        else:
+            # No rows affected, roll back
+            con.rollback()
+            logging.warning(failure_msg)
+            print(f"{operation} operation completed but no rows affected")
+            return False
+    except Exception as e:
+        # Error during transaction, roll back
+        con.rollback()
+        raise e
+    finally:
+        con.close()
+
+# ===============================
 # Feedback Functions
 # ===============================
+
+def _insert_feedback_internal(feedback, username):
+    """Internal function to insert feedback while holding a lock"""
+    con = sql.connect("database_files/database.db")
+    cur = con.cursor()
+    
+    try:
+        # Start a transaction for database consistency
+        con.execute("BEGIN TRANSACTION")
+        
+        # Check if the feedback table has a username column
+        cur.execute("PRAGMA table_info(feedback)")
+        columns = [column[1] for column in cur.fetchall()]
+        
+        # Add username column if it doesn't exist (database migration)
+        if "username" not in columns:
+            cur.execute("ALTER TABLE feedback ADD COLUMN username TEXT")
+            logging.info("Added username column to feedback table")
+        
+        # Use parameterized query to prevent SQL injection
+        cur.execute("INSERT INTO feedback (feedback, username) VALUES (?, ?)", (feedback, username))
+        
+        # Commit the transaction
+        con.commit()
+        logging.info(f"New feedback inserted by {username}")
+        return True
+        
+    except Exception as e:
+        # Roll back transaction on error
+        con.rollback()
+        logging.error(f"Error in transaction during feedback insertion: {str(e)}")
+        raise
+        
+    finally:
+        con.close()
 
 def insertFeedback(feedback, username):
     """
@@ -311,194 +552,11 @@ def insertFeedback(feedback, username):
       1. Ensures the feedback table has a username column
       2. Uses parameterized queries to prevent SQL injection
       3. Associates feedback with the user who submitted it
+      4. Uses file locking to prevent race conditions
     
     Returns: True if successful, False otherwise
     """
-    try:
-        con = sql.connect("database_files/database.db")
-        cur = con.cursor()
-        
-        # Check if the feedback table has a username column
-        cur.execute("PRAGMA table_info(feedback)")
-        columns = [column[1] for column in cur.fetchall()]
-        
-        # Add username column if it doesn't exist (database migration)
-        if "username" not in columns:
-            cur.execute("ALTER TABLE feedback ADD COLUMN username TEXT")
-            con.commit()
-            logging.info("Added username column to feedback table")
-        
-        # Use parameterized query to prevent SQL injection
-        cur.execute("INSERT INTO feedback (feedback, username) VALUES (?, ?)", (feedback, username))
-        con.commit()
-        con.close()
-        
-        # Log the event for auditing
-        logging.info(f"New feedback inserted by {username}")
-        return True
-    except Exception as e:
-        logging.error(f"Error inserting feedback: {str(e)}")
-        return False
-
-
-def deleteFeedback(feedback_id, username):
-    """
-    Deletes feedback from the database if it belongs to the requesting user.
-    
-    This function:
-      1. Verifies the feedback exists and belongs to the user
-      2. Uses parameterized queries to prevent SQL injection
-      3. Only allows users to delete their own feedback
-    
-    Returns: True if successful, False otherwise
-    """
-    try:
-        print(f"Attempting to delete feedback ID {feedback_id} for user {username}")
-        # Ensure feedback_id is an integer (SQLite needs integers for ID comparisons)
-        feedback_id = int(feedback_id)
-        
-        con = sql.connect("database_files/database.db")
-        cur = con.cursor()
-        
-        # First check if the feedback entry exists
-        cur.execute("SELECT COUNT(*) FROM feedback WHERE id = ?", (feedback_id,))
-        count = cur.fetchone()[0]
-        
-        if count == 0:
-            con.close()
-            logging.warning(f"Delete attempt failed: Feedback #{feedback_id} not found")
-            print(f"Feedback ID {feedback_id} not found in database")
-            return False
-        
-        # Check if the feedback belongs to the user
-        cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,))
-        result = cur.fetchone()
-        
-        print(f"Database query result for feedback ID {feedback_id}: {result}")
-        
-        # If feedback doesn't belong to the user
-        if not result:
-            con.close()
-            logging.warning(f"Delete attempt failed: Feedback #{feedback_id} not found")
-            print(f"Feedback ID {feedback_id} not found in database")
-            return False
-            
-        if result[0] != username:
-            con.close()
-            logging.warning(f"Unauthorized delete attempt: User {username} tried to delete feedback #{feedback_id} owned by {result[0]}")
-            print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
-            return False
-        
-        # Delete the feedback if it belongs to the user - use explicit transaction
-        try:
-            con.execute("BEGIN TRANSACTION")
-            cur.execute("DELETE FROM feedback WHERE id = ? AND username = ?", (feedback_id, username))
-            rows_affected = cur.rowcount
-            print(f"Rows affected by delete: {rows_affected}")
-            
-            if rows_affected > 0:
-                # Commit the transaction
-                con.commit()
-                logging.info(f"Feedback #{feedback_id} deleted by {username}")
-                print(f"Successfully deleted feedback ID {feedback_id}")
-                return True
-            else:
-                # No rows affected, roll back
-                con.rollback()
-                logging.warning(f"Delete operation completed but no rows affected for feedback #{feedback_id}")
-                print(f"Delete operation completed but no rows affected")
-                return False
-        except Exception as e:
-            # Error during transaction, roll back
-            con.rollback()
-            raise e
-        finally:
-            con.close()
-    except Exception as e:
-        logging.error(f"Error deleting feedback: {str(e)}")
-        print(f"Exception in deleteFeedback: {str(e)}")
-        return False
-
-
-def editFeedback(feedback_id, new_text, username):
-    """
-    Updates existing feedback if it belongs to the requesting user.
-    
-    This function:
-      1. Verifies the feedback exists and belongs to the user
-      2. Uses parameterized queries to prevent SQL injection
-      3. Only allows users to edit their own feedback
-    
-    Returns: True if successful, False otherwise
-    """
-    try:
-        print(f"Attempting to edit feedback ID {feedback_id} for user {username}")
-        # Ensure feedback_id is an integer (SQLite needs integers for ID comparisons)
-        feedback_id = int(feedback_id)
-        
-        con = sql.connect("database_files/database.db")
-        cur = con.cursor()
-        
-        # First check if the feedback entry exists
-        cur.execute("SELECT COUNT(*) FROM feedback WHERE id = ?", (feedback_id,))
-        count = cur.fetchone()[0]
-        
-        if count == 0:
-            con.close()
-            logging.warning(f"Edit attempt failed: Feedback #{feedback_id} not found")
-            print(f"Feedback ID {feedback_id} not found in database")
-            return False
-        
-        # Check if the feedback belongs to the user
-        cur.execute("SELECT username FROM feedback WHERE id = ?", (feedback_id,))
-        result = cur.fetchone()
-        
-        print(f"Database query result for feedback ID {feedback_id}: {result}")
-        
-        # If feedback doesn't belong to the user
-        if not result:
-            con.close()
-            logging.warning(f"Edit attempt failed: Feedback #{feedback_id} not found")
-            print(f"Feedback ID {feedback_id} not found in database")
-            return False
-            
-        if result[0] != username:
-            con.close()
-            logging.warning(f"Unauthorized edit attempt: User {username} tried to edit feedback #{feedback_id} owned by {result[0]}")
-            print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
-            return False
-        
-        # Update the feedback if it belongs to the user - use explicit transaction
-        try:
-            con.execute("BEGIN TRANSACTION")
-            cur.execute("UPDATE feedback SET feedback = ? WHERE id = ? AND username = ?", 
-                       (new_text, feedback_id, username))
-            rows_affected = cur.rowcount
-            print(f"Rows affected by update: {rows_affected}")
-            
-            if rows_affected > 0:
-                # Commit the transaction
-                con.commit()
-                logging.info(f"Feedback #{feedback_id} edited by {username}")
-                print(f"Successfully edited feedback ID {feedback_id}")
-                return True
-            else:
-                # No rows affected, roll back
-                con.rollback()
-                logging.warning(f"Edit operation completed but no rows affected for feedback #{feedback_id}")
-                print(f"Edit operation completed but no rows affected")
-                return False
-        except Exception as e:
-            # Error during transaction, roll back
-            con.rollback()
-            raise e
-        finally:
-            con.close()
-    except Exception as e:
-        logging.error(f"Error editing feedback: {str(e)}")
-        print(f"Exception in editFeedback: {str(e)}")
-        return False
-
+    return with_file_lock("feedback insertion", username, _insert_feedback_internal, feedback, username)
 
 def listFeedback():
     """

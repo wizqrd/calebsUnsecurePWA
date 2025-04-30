@@ -2,6 +2,23 @@
 <p class="no-feedback">No feedback has been shared yet. Be the first to share your thoughts!</p>
 {% else %}
   {% for item in feedback_items %}
-  <p>{{ item.text }}<br><small>Posted by: {{ item.username }}</small></p>
+  <div class="feedback-item" id="feedback-{{ item.id }}">
+    <div class="feedback-content">
+      <p>{{ item.text }}<br><small>Posted by: {{ item.username }}</small></p>
+      {% if item.username == session['user'] %}
+      <div class="feedback-actions">
+        <button class="btn-edit" onclick="showEditForm('{{ item.id }}', '{{ item.text|e }}')">Edit</button>
+        <button class="btn-delete" onclick="deleteItem('{{ item.id }}')">Delete</button>
+      </div>
+      <div id="edit-form-{{ item.id }}" class="edit-form" style="display: none;">
+        <textarea id="edit-text-{{ item.id }}" class="input__field">{{ item.text }}</textarea>
+        <div class="edit-actions">
+          <button class="btn-save" onclick="saveEdit('{{ item.id }}')">Save</button>
+          <button class="btn-cancel" onclick="cancelEdit('{{ item.id }}')">Cancel</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
   {% endfor %}
 {% endif %}
