@@ -14,7 +14,7 @@ import datetime
 # App setup and configuration
 # ===============================
 
-# Initialize the Flask application
+# Initialise the Flask application
 app = Flask(__name__)
 
 # Generate a secure random key for signing session cookies
@@ -42,7 +42,7 @@ logging.basicConfig(
 )
 
 # Create a function to log errors
-def log_error(error_code, message, details=None):
+def logError(error_code, message, details=None):
     error_data = {
         'code': error_code,
         'message': message,
@@ -56,23 +56,23 @@ def log_error(error_code, message, details=None):
 # Helper functions for security
 # ===============================
 
-# Sanitize user input to prevent XSS (Cross-Site Scripting) attacks
+# Sanitise user input to prevent XSS (Cross-Site Scripting) attacks
 # XSS attacks occur when malicious scripts are injected into trusted websites
-def sanitizeInput(input_text):
+def sanitiseInput(input_text):
     # Convert special characters to HTML entities (e.g., < becomes &lt;)
     # This prevents browsers from interpreting them as HTML/JavaScript
     return html.escape(input_text)
 
 # Extra safety for HTML attributes to prevent attribute-based XSS attacks
 # These attacks involve breaking out of HTML attributes to inject code
-def sanitizeAttributeValue(value):
+def sanitiseAttributeValue(value):
     if value is None:
         return ""
     # Remove characters that could break out of HTML attributes
-    sanitized = re.sub(r'[&<>"\'`=]', '', str(value))
+    sanitised = re.sub(r'[&<>"\'`=]', '', str(value))
     # Block dangerous URL protocols like javascript: that can execute code
-    sanitized = re.sub(r'^(javascript|data|vbscript):', '', sanitized, flags=re.IGNORECASE)
-    return sanitized
+    sanitised = re.sub(r'^(javascript|data|vbscript):', '', sanitised, flags=re.IGNORECASE)
+    return sanitised
 
 # Validate redirect URLs to prevent open redirect vulnerabilities
 # Open redirects can be used for phishing by sending users to malicious sites
@@ -92,11 +92,11 @@ def isValidRedirect(url):
     return False
 
 # Handle URL redirection with security validation
-def handle_redirect_params():
+def handleRedirectParams():
     if request.method == "GET" and request.args.get("url"):
         url = request.args.get("url", "")
-        # Sanitize URL parameter
-        url = sanitizeAttributeValue(url)
+        # Sanitise URL parameter
+        url = sanitiseAttributeValue(url)
         if isValidRedirect(url):
             return redirect(url, code=302)
         else:
@@ -104,7 +104,7 @@ def handle_redirect_params():
     return None
 
 # Validate username format and length
-def validate_username(username, template_path):
+def validateUsername(username, template_path):
     if len(username) < 3 or len(username) > 20:
         return render_template(template_path, error="Username must be between 3 and 20 characters")
     
@@ -114,11 +114,11 @@ def validate_username(username, template_path):
     return None
 
 # Handle TOTP verification logic
-def handle_totp_verification(username, token, success_message, template_path, is_setup=False):
+def handleTOTPVerification(username, token, success_message, template_path, is_setup=False):
     # Get the TOTP secret for this user
     secret = dbHandler.getTOTPSecret(username)
     if not secret:
-        log_error(3001, "TOTP secret not found", {'username': username})
+        logError(3001, "TOTP secret not found", {'username': username})
         return render_template("/verify_2fa.html", error="Invalid credentials", username=username)
     
     # Generate QR code for scanning with authenticator app
@@ -147,7 +147,7 @@ def handle_totp_verification(username, token, success_message, template_path, is
 # Check for sensitive information in URL parameters (before each request)
 # This prevents accidental exposure of sensitive data in browser history, logs, etc.
 @app.before_request
-def check_sensitive_parameters():
+def checkSensitiveParameters():
     # Only check GET requests (where parameters appear in the URL)
     if request.method == 'GET':
         # List of parameter names that should never be in a URL
@@ -222,18 +222,18 @@ def home():
         return redirect("/success.html")
         
     # Handle redirect parameter (with security validation)
-    redirect_response = handle_redirect_params()
+    redirect_response = handleRedirectParams()
     if redirect_response:
         return redirect_response
             
     # Handle login form submission
     if request.method == "POST":
         # Only process login if user is not already logged in
-        username = sanitizeInput(request.form["username"])
+        username = sanitiseInput(request.form["username"])
         password = request.form["password"]
         
         # Validate username
-        validation_result = validate_username(username, "/index.html")
+        validation_result = validateUsername(username, "/index.html")
         if validation_result:
             return validation_result
         
@@ -265,20 +265,20 @@ def signup():
         return redirect("/success.html")
         
     # Handle redirect parameter (with security validation)
-    redirect_response = handle_redirect_params()
+    redirect_response = handleRedirectParams()
     if redirect_response:
         return redirect_response
             
     # Handle registration form submission
     if request.method == "POST":
-        # Sanitize all user inputs to prevent XSS
-        username = sanitizeInput(request.form["username"])
-        email = sanitizeInput(request.form["email"])
-        password = request.form["password"]  # Not sanitized as it will be hashed
-        dob = sanitizeInput(request.form["dob"])
+        # Sanitise all user inputs to prevent XSS
+        username = sanitiseInput(request.form["username"])
+        email = sanitiseInput(request.form["email"])
+        password = request.form["password"]  # Not sanitised as it will be hashed
+        dob = sanitiseInput(request.form["dob"])
         
         # Validate username
-        validation_result = validate_username(username, "/signup.html")
+        validation_result = validateUsername(username, "/signup.html")
         if validation_result:
             return validation_result
         
@@ -319,7 +319,7 @@ def logout():
 @app.route("/show_qr")
 def showQRCode():
     if request.args.get("username"):
-        username = sanitizeInput(request.args.get("username"))
+        username = sanitiseInput(request.args.get("username"))
         
         # Security check: Make sure this is a legitimate verification session
         if 'temp_username' not in session or session['temp_username'] != username:
@@ -341,18 +341,18 @@ def showQRCode():
 # Route to verify 2FA code during initial setup
 @app.route("/verify_2fa", methods=["POST"])
 @limiter.limit("5 per minute")  # Prevent brute force 2FA attacks
-def verify_2fa_setup():
+def verify2FASetup():
     if request.method == "POST":
         username = request.form["username"]
         token = request.form["token"]  # The 6-digit code from authenticator app
         
         success_message = f"Welcome {username}! Your 2FA setup was successful."
-        return handle_totp_verification(username, token, success_message, "/setup_2fa.html", is_setup=True)
+        return handleTOTPVerification(username, token, success_message, "/setup_2fa.html", is_setup=True)
 
 # Route to verify 2FA code during login
 @app.route("/verify_login_2fa", methods=["POST"])
 @limiter.limit("5 per minute")  # Prevent brute force 2FA attacks
-def verify_login_2fa():
+def verifyLogin2FA():
     if request.method == "POST":
         username = request.form["username"]
         token = request.form["token"]  # The 6-digit code from authenticator app
@@ -362,7 +362,7 @@ def verify_login_2fa():
             return redirect("/")
         
         success_message = f"Welcome {username}! You have successfully logged in."
-        return handle_totp_verification(username, token, success_message, "/verify_2fa.html")
+        return handleTOTPVerification(username, token, success_message, "/verify_2fa.html")
 
 # ===============================
 # Feedback and Content Routes
@@ -426,8 +426,8 @@ def addFeedback():
             session['message'] = "Feedback cannot be empty."
             return redirect("/success.html")
             
-        # Sanitize input to prevent XSS attacks
-        feedback = sanitizeInput(feedback)
+        # Sanitise input to prevent XSS attacks
+        feedback = sanitiseInput(feedback)
         
         # Limit feedback length to prevent abuse
         if len(feedback) > 500:
@@ -439,7 +439,7 @@ def addFeedback():
             con = sql.connect("database_files/database.db")
             cur = con.cursor()
             
-            # Insert the new feedback with parameterized query to prevent SQL injection
+            # Insert the new feedback with parameterised query to prevent SQL injection
             cur.execute("INSERT INTO feedback (feedback, username) VALUES (?, ?)", 
                        (feedback, session['user']))
             con.commit()
@@ -474,8 +474,8 @@ def editFeedback():
         if not feedback_id or not new_text or len(new_text.strip()) == 0:
             return jsonify({"success": False, "message": "Invalid input"}), 400
             
-        # Sanitize input to prevent XSS attacks
-        new_text = sanitizeInput(new_text)
+        # Sanitise input to prevent XSS attacks
+        new_text = sanitiseInput(new_text)
         
         # Limit feedback length to prevent abuse
         if len(new_text) > 500:
@@ -505,7 +505,7 @@ def editFeedback():
         return jsonify({"success": True, "message": "Feedback updated successfully"})
     
     except Exception as e:
-        log_error(5001, f"Error editing feedback: {str(e)}")
+        logError(5001, f"Error editing feedback: {str(e)}")
         return jsonify({"success": False, "message": "Error updating feedback"}), 500
 
 # Route for deleting feedback
@@ -552,7 +552,7 @@ def deleteFeedback():
         return jsonify({"success": True, "message": "Feedback deleted successfully"})
     
     except Exception as e:
-        log_error(5002, f"Error deleting feedback: {str(e)}")
+        logError(5002, f"Error deleting feedback: {str(e)}")
         return jsonify({"success": False, "message": "Error deleting feedback"}), 500
 
 # ===============================

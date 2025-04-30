@@ -10,20 +10,19 @@ from io import BytesIO
 import base64
 import os
 import platform
-import errno  # For handling lock-related errors
+import errno  
 
-# Use appropriate locking mechanism based on platform
 if platform.system() == 'Windows':
-    import msvcrt  # For file locking on Windows
+    import msvcrt  # for file locking on Windows
 else:
-    import fcntl  # For file locking on Unix systems
+    import fcntl  # allows for file locking on linux systems
 
 # ===============================
 # Logging Configuration
 # ===============================
 
-# Set up logging to keep track of security events
-# This creates a detailed security audit trail that can be analyzed later
+# i set up logging to keep track of security events
+# this creates a detailed security audit trail that can be analysed later
 logging.basicConfig(filename='security_log.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -31,7 +30,7 @@ logging.basicConfig(filename='security_log.log', level=logging.INFO,
 # Directory Setup
 # ===============================
 
-def ensure_directories_exist():
+def ensureDirectoriesExist():
     """
     Ensures all required directories exist for the application.
     This prevents errors when trying to create files in non-existent directories.
@@ -48,40 +47,25 @@ def ensure_directories_exist():
             except Exception as e:
                 logging.error(f"Error creating directory {directory}: {str(e)}")
 
-# Call this function early to ensure directories exist
-ensure_directories_exist()
+ensureDirectoriesExist()
 
 # ===============================
 # Password Security Functions
 # ===============================
 
 def validatePassword(password):
-    """
-    Verifies that passwords meet strong security requirements.
-    
-    This function checks multiple criteria to ensure passwords are resistant
-    to brute force and dictionary attacks:
-      - Length requirements (8-20 characters)
-      - Character diversity (uppercase, lowercase, numbers, symbols)
-    
-    Returns a tuple: (is_valid, message)
-    """
     if len(password) < 8 or len(password) > 20:
         return False, "Password must be between 8 and 20 characters"
-    
-    # Check for at least one uppercase letter
+
     if not re.search(r"[A-Z]", password):
         return False, "Password must contain at least one uppercase letter"
     
-    # Check for at least one lowercase letter
     if not re.search(r"[a-z]", password):
         return False, "Password must contain at least one lowercase letter"
     
-    # Check for at least one number
     if not re.search(r"[0-9]", password):
         return False, "Password must contain at least one number"
     
-    # Check for at least one special character
     if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", password):
         return False, "Password must contain at least one special character"
     
@@ -89,7 +73,7 @@ def validatePassword(password):
 
 def hashPassword(password):
     salt = bcrypt.gensalt()  # Generate a random salt
-    hashedPassword = bcrypt.hashpw(password.encode(), salt)  # Hash with salt
+    hashedPassword = bcrypt.hashpw(password.encode(), salt)  # Hash with the createdsalt
     return hashedPassword
 
 def checkPassword(plainPassword, hashedPassword):
@@ -101,20 +85,17 @@ def checkPassword(plainPassword, hashedPassword):
 
 def addEmailColumnIfNotExists():
     """
-    Ensures the database schema has the necessary columns.
+    this ensures the database schema has the necessary columns.
     
-    This function performs a dynamic database migration to add:
+    this function adds:
       - email column: For account recovery and communication
       - totp_secret column: For storing 2FA authentication secrets
-    
-    This approach allows the application to evolve without requiring manual
-    database updates when new features are added.
     """
     try:
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
         
-        # Get current table structure
+        # find current table structure
         cur.execute("PRAGMA table_info(users)")
         columns = [column[1] for column in cur.fetchall()]
         
@@ -140,9 +121,9 @@ def addEmailColumnIfNotExists():
 
 def generateTOTPSecret():
     """
-    Generates a random secret key for TOTP-based 2FA.
+    this generates a random secret key for TOTP-based 2FA.
     
-    This creates a cryptographically secure random key that will be:
+    it also creates a cryptographically secure random key that will be:
       - Stored in the user's database record
       - Shared with the user's authenticator app (Google Authenticator, Authy, etc.)
       - Used to generate and verify 6-digit codes
@@ -154,7 +135,7 @@ def generateTOTPSecret():
 
 def generateQRCode(username, secret):
     """
-    Creates a QR code image for setting up authenticator apps.
+    this function generates a QR code image for setting up authenticator apps.
     
     This function:
       1. Generates a special URI that contains the username, secret, and issuer
@@ -166,8 +147,6 @@ def generateQRCode(username, secret):
     # Create a TOTP object with the secret
     totp = pyotp.TOTP(secret)
     
-    # Generate a URI that authenticator apps can understand
-    # Format: otpauth://totp/[issuer]:[account]?secret=[secret]&issuer=[issuer]
     uri = totp.provisioning_uri(username, issuer_name="Secure PWA")
     
     # Generate a QR code image from the URI
@@ -206,7 +185,7 @@ def getTOTPSecret(username):
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
         
-        # Use parameterized query to prevent SQL injection
+        # Use parameterised query to prevent SQL injection
         cur.execute("SELECT totp_secret FROM users WHERE username = ?", (username,))
         result = cur.fetchone()
         con.close()
@@ -247,7 +226,7 @@ def insertUser(username, password, dob, email=""):
         # Generate 2FA secret for the user
         totpSecret = generateTOTPSecret()
         
-        # Use parameterized query to prevent SQL injection
+        # Use parameterised query to prevent SQL injection
         cur.execute(
             "INSERT INTO users (username,password,dateOfBirth,email,totp_secret) VALUES (?,?,?,?,?)",
             (username, hashedPassword, dob, email, totpSecret),
@@ -269,7 +248,7 @@ def retrieveUsers(username, password):
     Authenticates a user based on username and password.
     
     Security features:
-      1. Uses parameterized queries to prevent SQL injection
+      1. Uses parameterised queries to prevent SQL injection
       2. Implements timing attack protection
       3. Stores only hashed passwords, never plaintext
       4. Tracks login attempts for auditing
@@ -280,7 +259,7 @@ def retrieveUsers(username, password):
         con = sql.connect("database_files/database.db")
         cur = con.cursor()
         
-        # Use parameterized query to prevent SQL injection
+        # Use parameterised query to prevent SQL injection
         cur.execute("SELECT * FROM users WHERE username = ?", (username,))
         user = cur.fetchone()
         
@@ -336,7 +315,7 @@ def updateVisitorCount():
 # File Locking Helper
 # ===============================
 
-def with_file_lock(operation_name, username, callback_func, *args):
+def withFileLock(operation_name, username, callback_func, *args):
     """
     Helper function that handles file locking for database operations.
     
@@ -378,7 +357,7 @@ def with_file_lock(operation_name, username, callback_func, *args):
                     lock_file.close()
                 # Wait a short time and try again instead of failing
                 time.sleep(random.uniform(0.1, 0.5))
-                return with_file_lock(operation_name, username, callback_func, *args)  # Recursive retry
+                return withFileLock(operation_name, username, callback_func, *args)  # Recursive retry
             else:
                 # Some other error occurred with the lock
                 raise
@@ -412,7 +391,7 @@ def with_file_lock(operation_name, username, callback_func, *args):
 # Feedback Helper Functions
 # ===============================
 
-def check_feedback_ownership(feedback_id, username, operation):
+def checkFeedbackOwnership(feedback_id, username, operation):
     """
     Helper function to check if feedback exists and belongs to the user.
     
@@ -452,7 +431,7 @@ def check_feedback_ownership(feedback_id, username, operation):
             
         if result[0] != username:
             con.close()
-            logging.warning(f"Unauthorized {operation} attempt: User {username} tried to {operation} feedback #{feedback_id} owned by {result[0]}")
+            logging.warning(f"Unauthorised {operation} attempt: User {username} tried to {operation} feedback #{feedback_id} owned by {result[0]}")
             print(f"Permission denied: Feedback belongs to {result[0]}, not {username}")
             return None, None, False
             
@@ -465,7 +444,7 @@ def check_feedback_ownership(feedback_id, username, operation):
         print(f"Error checking feedback ownership: {str(e)}")
         return None, None, False
 
-def execute_transaction(con, cur, operation, query, params, success_msg, failure_msg):
+def executeTransaction(con, cur, operation, query, params, success_msg, failure_msg):
     """
     Helper function to execute a database transaction.
     
@@ -509,7 +488,7 @@ def execute_transaction(con, cur, operation, query, params, success_msg, failure
 # Feedback Functions
 # ===============================
 
-def _insert_feedback_internal(feedback, username):
+def _insertFeedbackInternal(feedback, username):
     """Internal function to insert feedback while holding a lock"""
     con = sql.connect("database_files/database.db")
     cur = con.cursor()
@@ -527,7 +506,7 @@ def _insert_feedback_internal(feedback, username):
             cur.execute("ALTER TABLE feedback ADD COLUMN username TEXT")
             logging.info("Added username column to feedback table")
         
-        # Use parameterized query to prevent SQL injection
+        # Use parameterised query to prevent SQL injection
         cur.execute("INSERT INTO feedback (feedback, username) VALUES (?, ?)", (feedback, username))
         
         # Commit the transaction
@@ -550,13 +529,13 @@ def insertFeedback(feedback, username):
     
     This function:
       1. Ensures the feedback table has a username column
-      2. Uses parameterized queries to prevent SQL injection
+      2. Uses parameterised queries to prevent SQL injection
       3. Associates feedback with the user who submitted it
       4. Uses file locking to prevent race conditions
     
     Returns: True if successful, False otherwise
     """
-    return with_file_lock("feedback insertion", username, _insert_feedback_internal, feedback, username)
+    return withFileLock("feedback insertion", username, _insertFeedbackInternal, feedback, username)
 
 def listFeedback():
     """
